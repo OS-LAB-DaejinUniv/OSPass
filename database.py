@@ -1,11 +1,9 @@
 ### REDIS 사용 ###
-### POSTGRESQL 사용 ###
 
 import os
 from dotenv import load_dotenv
 import redis
 import logging
-
 
 load_dotenv()
 

@@ -19,7 +19,7 @@ else:
 ###
 # Serial을 열고
 # 데이터 읽고 쓰기 하면 됨(무슨 데이터? Response~)
-
+###
 ser = serial.Serial(device_path, 115200)
 
 ser.write(b'ENC_Hello')

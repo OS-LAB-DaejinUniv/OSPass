@@ -1,4 +1,5 @@
 import os
+import logging
 from sqlalchemy import create_engine, exc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -12,8 +13,7 @@ DATABASE_URL = os.getenv("POSTGRESQL_URL")
 try:
     engine = create_engine(DATABASE_URL)
 except exc.SQLAlchemyError as e:
-    print(f"Error creating engine: {e}")
-    # 적절한 오류 처리를 위한 추가 로직을 여기에 추가할 수 있습니다.
+    logging.error(f"Error creating engine: {e}")
 
 # SessionLocal 클래스 생성
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -26,7 +26,7 @@ def get_db():
     try:
         yield db
     except exc.SQLAlchemyError as e:
-        print(f"Database session error: {e}")
-        # 추가적인 오류 처리를 위한 로직을 여기에 추가할 수 있습니다.
+        logging.error(f"Database session error: {e}")
+        
     finally:
         db.close()
