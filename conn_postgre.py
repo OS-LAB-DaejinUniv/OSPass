@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("POSTGRESQL_URL")
-
+logging.info(f"DataBaseUrl: {DATABASE_URL}")
 # SQLAlchemy engine 생성
 try:
     engine = create_engine(DATABASE_URL)

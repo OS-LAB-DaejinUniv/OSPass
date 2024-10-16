@@ -28,6 +28,6 @@ while True:
     data = ser.readline()
     print(data)
 
-        
+
     
 

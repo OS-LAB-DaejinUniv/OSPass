@@ -4,3 +4,9 @@
 ### 상수 파일 ### 
 const.py
 
+### venv 파일
+venv
+
+### __pycache__
+__pycache__
+

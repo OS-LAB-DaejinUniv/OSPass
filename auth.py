@@ -67,7 +67,7 @@ def gen_api_key(db : Session = Depends(get_db)):
         if api_key not in db:
             return api_key
     except:
-        HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="API KEY ISSUED FAIL")
+        HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="API KEY ISSUED FAIL")
     return api_key
 
 # TODO : 인가 코드 발급
@@ -104,7 +104,7 @@ def authentication_user(db, session_id : str):
 
 # 사용자 정보(UUID, 이름, 포지션(0=부원, 1=랩장)) 가져오기
 @verify_router.get("/v1/userinfo")
-def get_user(uuid, name, db: Session = Depends(get_db)):
+def get_user( db: Session = Depends(get_db)):
     try:
         members = db.query(OsMember).all()
         if not members:
