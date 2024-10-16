@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Union, Any
-from fastapi import Depends, HTTPException, status, APIRouter
+from fastapi import Depends, HTTPException, status, APIRouter, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from jose import jwt, JWTError
@@ -14,6 +14,7 @@ from schemes import User
 from models import OsMember
 from conn_postgre import get_db
 import database
+from conn_arduino import send_enr_data
 
 # TODO
 # 1. Postgre에서 가져온 UUID(Login용 Session ID)와 JavaCard에서 주는 UUID와 비교 및 검증
@@ -23,8 +24,11 @@ import database
 
 load_dotenv()
 
-# Redis 
+# Redis Connect and receive {key : value}
 rd = database.redis_config()
+
+# Arduino Connect : send encrpyt response
+enc_res = send_enr_data()
 
 verify_router = APIRouter(prefix="/api")
 
@@ -44,9 +48,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Challenge와 Response 비교 후 검증
 @verify_router.post("/v1/card_response")
-def verify_card_response(response : str):
+def verify_card_response(challenge : str):
     
-    stored_challege = rd.get(response)
+    stored_challege = rd.get(challenge)
     print(f'challenge in redis {stored_challege}')
     if not stored_challege:
         raise HTTPException(status_code=404, detail="Key not found or Time Expired")
@@ -59,7 +63,7 @@ def verify_card_response(response : str):
 
 # API KEY 생성
 # 생성된 API_KEY를 DB에 INSERT  함
-# 
+
 @verify_router.get("/v1/api-key")
 def gen_api_key(db : Session = Depends(get_db)):
     api_key = hex(random.getrandbits(128))
@@ -70,19 +74,19 @@ def gen_api_key(db : Session = Depends(get_db)):
         HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="API KEY ISSUED FAIL")
     return api_key
 
-# TODO : 인가 코드 발급
-# 1. 카드를 통해 로그인을 시도
-# 2. 정보가 일치하면 인가 코드를 서비스 서버에 제공한다.
-
 # 서비스 서버에서 인가 코드 요청(로그인 시도)했을 시 동작
 @verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirec_uri}")
-def sup_authrization_code(API_KEY):
-      """
-      API KEY가 일치하고 카드의 UUID와 DB의 UUID가 일치하면
-      인가코드를 줌
-      if user.apikey == server.apikey && card.uuid == db.uuid
-        return authcode(random)
-      """
+def post_authrization_code(API_KEY : str, card_uuid : str, challenge : str, response : Response, db : Session = Depends(get_db)):
+    authorization_code = hex(random.getrandbits(128))
+    stored_challenge = rd.get(challenge)
+    session_id = db.query(OsMember).filter(OsMember.uuid == card_uuid).first()
+    try:
+        if API_KEY in "API-KEY Storage DB.key" and enc_res == stored_challenge and card_uuid in session_id:
+            response.status_code = status.HTTP_201_CREATED
+            return authorization_code
+    except:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
+
 
 #  서비스 서버가 인가 코드로 access token을 발급 요청했을 시 동작 
 @verify_router.post("/v1/access_token")
@@ -102,6 +106,12 @@ def authentication_user(db, session_id : str):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid Session_ID")
 
 
+
+
+
+
+
+#-------------------------------------------------------#
 # 사용자 정보(UUID, 이름, 포지션(0=부원, 1=랩장)) 가져오기
 @verify_router.get("/v1/userinfo")
 def get_user( db: Session = Depends(get_db)):
