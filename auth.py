@@ -27,13 +27,10 @@ load_dotenv()
 # Redis Connect and receive {key : value}
 rd = database.redis_config()
 
-# Arduino Connect : send encrpyt response
+# Arduino Connect : receive encrpyt response
 enc_res = send_enr_data()
 
 verify_router = APIRouter(prefix="/api")
-
-# Serial 통신으로 받아올 복호화 된 response값
-decrypted_challenge = '8c64923078d57c8664aee61c2f1dcedc' # decrypted_challenge (response)
 
 # Token Scheme
 class Token(BaseModel):
@@ -55,7 +52,7 @@ def verify_card_response(challenge : str):
     if not stored_challege:
         raise HTTPException(status_code=404, detail="Key not found or Time Expired")
     
-    if stored_challege == decrypted_challenge:
+    if stored_challege == enc_res:
         return {"message": "Valid response"}
     else:
         raise HTTPException(status_code=400, detail="Invalid response")
@@ -72,11 +69,10 @@ def gen_api_key(db : Session = Depends(get_db)):
             return api_key
     except:
         HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="API KEY ISSUED FAIL")
-    return api_key
 
 # 서비스 서버에서 인가 코드 요청(로그인 시도)했을 시 동작
-@verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirec_uri}")
-def post_authrization_code(API_KEY : str, card_uuid : str, challenge : str, response : Response, db : Session = Depends(get_db)):
+@verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirect_uri}")
+def post_authrization_code(API_KEY : str,card_uuid : str, challenge : str, response : Response, db : Session = Depends(get_db)):
     authorization_code = hex(random.getrandbits(128))
     stored_challenge = rd.get(challenge)
     session_id = db.query(OsMember).filter(OsMember.uuid == card_uuid).first()
@@ -88,7 +84,7 @@ def post_authrization_code(API_KEY : str, card_uuid : str, challenge : str, resp
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
 
 
-#  서비스 서버가 인가 코드로 access token을 발급 요청했을 시 동작 
+# 서비스 서버가 인가 코드로 access token을 발급 요청했을 시 동작 
 @verify_router.post("/v1/access_token")
 def issue_access_token(data : dict, expires_delta : timedelta | None = None):
     to_encode = data.copy()

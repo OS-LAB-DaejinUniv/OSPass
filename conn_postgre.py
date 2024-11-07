@@ -12,6 +12,7 @@ logging.info(f"DataBaseUrl: {DATABASE_URL}")
 # SQLAlchemy engine 생성
 try:
     engine = create_engine(DATABASE_URL)
+    logging.info(f"POSTGRESQL CONNECTED SUCCESSFULLY")
 except exc.SQLAlchemyError as e:
     logging.error(f"Error creating engine: {e}")
 

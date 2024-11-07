@@ -24,7 +24,7 @@ ser = serial.Serial(device_path, 115200)
 
 ser.write(b'ENC_Hello')
 
-# 복호화 된 Response 인가 코드 발급 로직에 전달
+# 복호화 된 Response -> 인가 코드 발급 로직에 전달
 async def send_enr_data():
         data = ser.readline()
         print(f"복호화 된 Response: {data}")

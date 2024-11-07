@@ -44,32 +44,10 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# # admin 권한을 주기 위한 함수 - Swagger 문서 접근 권한 제한
-# def get_admin(credentials: Annotated[HTTPBasicCredentials, Depends(security)]):
-#     correct_name = secrets.compare_digest(credentials.username, "admin")
-#     correct_pwd = secrets.compare_digest(credentials.password, "admin1234")
-#     if not (correct_name and correct_pwd):  # 여기 오타 수정
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Incorrect ID or Password",
-#             headers={"WWW-Authenticate": "Basic"},
-#         )
-#     return credentials.username
-
-# # Swagger UI 접근 제한
-# @app.get("/docs")
-# def get_docs(credentials: Annotated[HTTPBasicCredentials, Depends(get_admin)]):
-#     return get_swagger_ui_html(openapi_url="/openapi.json", title="docs")
-
-# # OpenAPI JSON 접근 제한
-# @app.get("/openapi.json")
-# def get_openapi_json(credentials: Annotated[HTTPBasicCredentials, Depends(get_admin)]):
-#     return get_openapi(title=app.title, version=app.version, routes=app.routes)
-
 # 기본 경로
 @app.get("/")
 async def main():
-    return {"message": "hello"}
+    return {"message": "Hello Guys from OS-LAB"}
 
 # 로그 확인용 엔드포인트
 @app.get("/log")
