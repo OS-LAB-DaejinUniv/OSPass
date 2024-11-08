@@ -31,9 +31,9 @@ def gen_api_key(db : Session = Depends(get_db)):
     except:
         HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                       detail="API KEY ISSUED FAIL") 
-        
+
 async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get_db)):
-    result = db.query(APIKeyLog).filter(APIKeyLog.key==api_key,
+    result = await db.query(APIKeyLog).filter(APIKeyLog.key==api_key,
                                         APIKeyLog.uuid==uuid)
     if result:
         logging.info(f"UUID {uuid} & API kEY {api_key} matched")
@@ -41,3 +41,8 @@ async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get
     else:
         logging.error(f"No match found for UUID {uuid} & API KEY {api_key}")
         return False
+
+# 만들어진 API KEY와 UUID, SOURCE(사용 출처), Timestamp DB에 저장
+def insert_log(uuid:str, api_key:str,source:str,timestamp:str,db:Session=Depends(get_db)):
+    
+    result = db.add

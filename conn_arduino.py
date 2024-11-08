@@ -30,6 +30,6 @@ async def send_enr_data():
         print(f"복호화 된 Response: {data}")
         return await data
 
-
+# TODO: binary code -> string 변환, substring
     
 

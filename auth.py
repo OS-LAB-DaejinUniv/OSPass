@@ -57,18 +57,6 @@ def verify_card_response(challenge : str):
     else:
         raise HTTPException(status_code=400, detail="Invalid response")
 
-
-# API KEY 생성
-# 생성된 API_KEY를 DB에 INSERT  함
-@verify_router.get("/v1/api-key")
-def gen_api_key(db : Session = Depends(get_db)):
-    api_key = hex(random.getrandbits(128))
-    try:
-        if api_key not in db:
-            return api_key
-    except:
-        HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="API KEY ISSUED FAIL")
-
 # 서비스 서버에서 인가 코드 요청(로그인 시도)했을 시 동작
 @verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirect_uri}")
 def post_authrization_code(API_KEY : str,card_uuid : str, challenge : str, response : Response, db : Session = Depends(get_db)):
