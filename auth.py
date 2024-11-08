@@ -60,7 +60,6 @@ def verify_card_response(challenge : str):
 
 # API KEY 생성
 # 생성된 API_KEY를 DB에 INSERT  함
-
 @verify_router.get("/v1/api-key")
 def gen_api_key(db : Session = Depends(get_db)):
     api_key = hex(random.getrandbits(128))
