@@ -10,8 +10,10 @@ api_key_manage = APIRouter(prefix="api")
 # OSCard 로그인 API : API kEY 생성 전 검증 처리(로그인)
 api_key_manage.get("/v1/login")
 def login(enc_data_uuid : str, db : Session = Depends(get_db)):
-    enc_data_uuid = "arduino에서 복호화된 uuid"
-    member_ssid = db.query(OsMember).filter(OsMember.uuid == enc_data_uuid).first()
+    import binascii
+    from conn_arduino.dec_data import conn_hsm
+    dec_uuid = conn_hsm.decrypt(data=binascii.unhexlify(enc_data_uuid))
+    member_ssid = db.query(OsMember).filter(OsMember.uuid == dec_uuid).first()
     # Arduino의 복호화 된 데이터 중 uuid 부분과 검증
     if member_ssid is None: 
         raise HTTPException(status_code=404,

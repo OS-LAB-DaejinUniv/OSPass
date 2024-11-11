@@ -61,6 +61,7 @@ async def proxy_log(request: Request):
 app.include_router(challenge_router)
 app.include_router(verify_router)
 
+
 # 서버 실행
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

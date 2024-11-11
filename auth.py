@@ -14,21 +14,12 @@ from schemes import User
 from models import OsMember
 from conn_postgre import get_db
 import database
-from conn_arduino import send_enr_data
-
-# TODO
-# 1. Postgre에서 가져온 UUID(Login용 Session ID)와 JavaCard에서 주는 UUID와 비교 및 검증
-# 2. 검증이 끝나면 JWT를 발급 함
-# 3. Postgre에서 uuid -> session_id로 컬럼명 변경할 것
-
+from conn_arduino.dec_data import conn_hsm
 
 load_dotenv()
 
 # Redis Connect and receive {key : value}
 rd = database.redis_config()
-
-# Arduino Connect : receive encrpyt response
-enc_res = send_enr_data()
 
 verify_router = APIRouter(prefix="/api")
 
@@ -43,19 +34,44 @@ class TokenData(BaseModel):
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Challenge와 Response 비교 후 검증
 @verify_router.post("/v1/card_response")
-def verify_card_response(challenge : str):
-    
-    stored_challege = rd.get(challenge)
-    print(f'challenge in redis {stored_challege}')
-    if not stored_challege:
-        raise HTTPException(status_code=404, detail="Key not found or Time Expired")
-    
-    if stored_challege == enc_res:
+async def verify_card_response(data, challenge, db: Session = Depends(get_db)):
+    try:
+        import binascii
+        # 앱에서 전달된 데이터 복호화
+        dec_data = conn_hsm.decrypt(data=binascii.unhexlify(data))
+        
+        # Redis에서 기존 challenge 키로 저장된 값 조회
+        stored_challenge = rd.get(challenge)
+        if stored_challenge is None:
+            raise HTTPException(status_code=404, detail="Key not found or expired")
+        
+        print(f"Challenge in Redis: {stored_challenge.decode()}")  # Redis에서 가져온 챌린지 값 출력
+        print(f"Decrypted data: {dec_data.hex()}")  # 복호화된 데이터 출력
+        
+        # 챌린지 값만 추출 (예시, 실제 데이터 구조에 맞게 수정 필요)
+        dec_challenge = dec_data.hex()  
+        print(f"Extracted challenge: {dec_challenge}")
+        
+        # 저장된 챌린지 값과 비교
+        if stored_challenge.decode() == dec_challenge:
+            print("Challenge match: correct")
+        else:
+            print("Challenge match: incorrect")
+            raise HTTPException(status_code=400, detail="Invalid response")
+        
+        # UUID 확인
+        member_ssid = db.query(OsMember).filter(OsMember.uuid == dec_data.hex()).first()
+        if not member_ssid:
+            print("Member not found in database")
+            raise HTTPException(status_code=404, detail="Member not found")
+        
         return {"message": "Valid response"}
-    else:
-        raise HTTPException(status_code=400, detail="Invalid response")
+    
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 # 서비스 서버에서 인가 코드 요청(로그인 시도)했을 시 동작
 @verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirect_uri}")
@@ -64,7 +80,7 @@ def post_authrization_code(API_KEY : str,card_uuid : str, challenge : str, respo
     stored_challenge = rd.get(challenge)
     session_id = db.query(OsMember).filter(OsMember.uuid == card_uuid).first()
     try:
-        if API_KEY in "API-KEY Storage DB.key" and enc_res == stored_challenge and card_uuid in session_id:
+        if API_KEY in "API-KEY Storage DB.key" and "enc_res" == stored_challenge and card_uuid in session_id:
             response.status_code = status.HTTP_201_CREATED
             return authorization_code
     except:

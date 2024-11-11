@@ -10,11 +10,12 @@ def redis_config():
     REDIS_DATABASE = int(os.getenv("REDIS_DATABASE"))
     
     try:
-        rd = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DATABASE)
+        rd = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DATABASE)
         rd.ping()
         print("Redis connected successfully")
         return rd
     except redis.ConnectionError as e:
         print(f"Redis connection failed: {e}")
+        return None
 
     
