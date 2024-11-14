@@ -5,10 +5,11 @@ from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 from sqlalchemy.orm import Session
 
-api_key_manage = APIRouter(prefix="api")
+api_key_manage = APIRouter(prefix="/api")
 
 # OSCard 로그인 API : API kEY 생성 전 검증 처리(로그인)
-api_key_manage.get("/v1/login")
+# 로그인 후 인가코드 발급도 같이 수행
+api_key_manage.post("/v1/login")
 def login(enc_data_uuid : str, db : Session = Depends(get_db)):
     import binascii
     from conn_arduino.dec_data import conn_hsm
@@ -23,16 +24,17 @@ def login(enc_data_uuid : str, db : Session = Depends(get_db)):
     
 # 검증(로그인) 성공 시 API kEY 생성
 # API KEY 생성하기 버튼?
-@api_key_manage.post("/v1/api-key")
+@api_key_manage.get("/v1/api-key?uuid={uuid}")
 def gen_api_key(db : Session = Depends(get_db)):
     import random
     api_key = hex(random.getrandbits(128))
-    try:
-        if api_key in check_api_key_match_uuid:
-            return api_key
-    except:
-        HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                      detail="API KEY ISSUED FAIL") 
+    return api_key
+    # try:
+        # if api_key in check_api_key_match_uuid:
+        #     return api_key
+    # except:
+    #     HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+    #                   detail="API KEY ISSUED FAIL") 
 
 async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get_db)):
     result = await db.query(APIKeyLog).filter(APIKeyLog.key==api_key,

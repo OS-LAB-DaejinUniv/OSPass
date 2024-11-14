@@ -11,6 +11,7 @@ import secrets
 
 from challenge import challenge_router
 from auth import verify_router
+from log_manage import api_key_manage
 
 
 app = FastAPI()
@@ -60,7 +61,7 @@ async def proxy_log(request: Request):
 # 라우터 포함
 app.include_router(challenge_router)
 app.include_router(verify_router)
-
+app.include_router(api_key_manage)
 
 # 서버 실행
 if __name__ == "__main__":

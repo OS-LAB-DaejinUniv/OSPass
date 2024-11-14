@@ -11,10 +11,11 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
 from schemes import User
-from models import OsMember
+from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 import database
 from conn_arduino.dec_data import conn_hsm
+from log_manage import login
 
 load_dotenv()
 
@@ -73,21 +74,30 @@ async def verify_card_response(data, challenge, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-# 서비스 서버에서 인가 코드 요청(로그인 시도)했을 시 동작
-@verify_router.post("/v1/authorization_code?api-key={API_KEY}&redirect_uri={redirect_uri}")
-def post_authrization_code(API_KEY : str,card_uuid : str, challenge : str, response : Response, db : Session = Depends(get_db)):
-    authorization_code = hex(random.getrandbits(128))
-    stored_challenge = rd.get(challenge)
-    session_id = db.query(OsMember).filter(OsMember.uuid == card_uuid).first()
+### 인가 코드 발급 ### 
+# 서비스 서버에서 인가 코드 요청(로그인(유저 검증)을 한 후) 했을 시 기능 수행
+@verify_router.get("/v1/authorization_code")
+def post_authrization_code(API_KEY : str, redirect_uri : str, response : Response, db : Session = Depends(get_db)):
+    user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT 
+    session_id = login()
     try:
-        if API_KEY in "API-KEY Storage DB.key" and "enc_res" == stored_challenge and card_uuid in session_id:
-            response.status_code = status.HTTP_201_CREATED
-            return authorization_code
+        if not user_api_key:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
+        if not session_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Unauthorized User")
+        
+        # 인가 코드 생성
+        authorization_code = hex(random.getrandbits(128))
+        
+        # 리디렉션 URL에 인가 코드를 포함하여 반환
+        response.status_code = status.HTTP_302_FOUND
+        response.headers["Location"] = f"{redirect_uri}?code={authorization_code}"
+        return response       
     except:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
 
 
-# 서비스 서버가 인가 코드로 access token을 발급 요청했을 시 동작 
+#  서비스 서버가 인가 코드로 access token을 발급 요청했을 시 동작 
 @verify_router.post("/v1/access_token")
 def issue_access_token(data : dict, expires_delta : timedelta | None = None):
     to_encode = data.copy()
