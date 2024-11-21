@@ -12,3 +12,12 @@ class User(BaseModel):
     
     class Config:
         orm_mode = True
+        
+# Token Scheme
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+# JWT에 담고있을 사용자 정보 스키마
+class TokenData(BaseModel):
+    uuid : str
