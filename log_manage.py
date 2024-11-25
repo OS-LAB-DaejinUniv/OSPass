@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 api_key_manage = APIRouter(prefix="/api")
 
+# OsUtility App에서 로그인 시 사용
 # OSCard 로그인 API : API kEY 생성 전 검증 처리(로그인)
 # 로그인 후 인가코드 발급도 같이 수행
 api_key_manage.post("/v1/login")
@@ -21,24 +22,24 @@ def login(enc_data_uuid : str, db : Session = Depends(get_db)):
                             detail="해당 UUID가 존재하지 않음")
     else:
         return status.HTTP_200_OK
-    
-# 검증(로그인) 성공 시 API kEY 생성
-# API KEY 생성하기 버튼?
+   
+# 로그인 된 사용자가 API KEY 발급 시 호출
+# API KEY 생성하기
 @api_key_manage.get("/v1/api-key?uuid={uuid}")
 def gen_api_key(db : Session = Depends(get_db)):
     import random
     api_key = hex(random.getrandbits(128))
-    return api_key
-    # try:
-        # if api_key in check_api_key_match_uuid:
-        #     return api_key
-    # except:
-    #     HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-    #                   detail="API KEY ISSUED FAIL") 
+    try:
+        if api_key in check_api_key_match_uuid():
+            return api_key
+    except:
+        HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                      detail="API KEY ISSUED FAIL") 
 
 async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get_db)):
-    result = await db.query(APIKeyLog).filter(APIKeyLog.key==api_key,
-                                        APIKeyLog.uuid==uuid)
+    
+    result = await db.query(APIKeyLog).filter(APIKeyLog.key==api_key, APIKeyLog.uuid==uuid)
+    
     if result:
         logging.info(f"UUID {uuid} & API kEY {api_key} matched")
         return True

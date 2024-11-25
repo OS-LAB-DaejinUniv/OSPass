@@ -1,0 +1,12 @@
+--- 
+1. auth.py :
+
+2. log_manage.py 
+- apikeylog db 테이블 생성해야 함 
+    - 
+- Login 시 토큰 발행? -> 보류
+- 로그인 된 uuid의 유저가 이미 api key가 발급되었는가? -> Yes or No
+- 없다면 gen_api_key api 동작 -> 생성
+- 생성된 api key는 ApiKeyLog 테이블에 저장 + 해당 uuid도 같이 저장 
+- 언제 api key를 발급했는지 timestamp 저장
+- api key를 어디에 사용했는지 사용 출처 -> null로 두고 사용되면 추적 후 DB에 저장
