@@ -25,16 +25,17 @@ def login(enc_data_uuid : str, db : Session = Depends(get_db)):
    
 # 로그인 된 사용자가 API KEY 발급 시 호출
 # API KEY 생성하기
-@api_key_manage.get("/v1/api-key?uuid={uuid}")
-def gen_api_key(db : Session = Depends(get_db)):
-    import random
-    api_key = hex(random.getrandbits(128))
+# api key 생성, 해당 uuid와 api key 매핑 후 Insert to Apikeylog table
+@api_key_manage.get("/v1/api-key")
+def gen_api_key(uuid:str, db:Session=Depends(get_db)):
     try:
-        if api_key in check_api_key_match_uuid():
-            return api_key
+        if login():
+            import random
+            new_api_key = APIKeyLog(key=hex(random.getrandbits(128)), user_uuid=uuid) # mapping
+            db.add(new_api_key) # generated api key & user's uuid insert to APIKeyLog Table
+            db.commit()
     except:
-        HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                      detail="API KEY ISSUED FAIL") 
+        return status.HTTP_401_UNAUTHORIZED
 
 async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get_db)):
     
@@ -48,6 +49,11 @@ async def check_api_key_match_uuid(uuid:str, api_key:str, db:Session=Depends(get
         return False
 
 # 만들어진 API KEY와 UUID, SOURCE(사용 출처), Timestamp DB에 저장
-def insert_log(uuid:str, api_key:str,source:str,timestamp:str,db:Session=Depends(get_db)):
+# uuid : 사용자 고유 uuid(카드에 담겨있음)
+# api_key : 사용자가 신청한 api key
+# souce : api key 사용 출처
+# timestamp : api key 생성 시간
+
+def insert_key_log(uuid:str, api_key:str, source:str, timestamp:str, db:Session=Depends(get_db)):
     
-    result = db.add
+    result = db.add()

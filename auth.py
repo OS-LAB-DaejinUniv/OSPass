@@ -74,7 +74,7 @@ async def verify_card_response(data, gen_challenge, response : Response, db: Ses
 def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Response, request : Request, db : Session = Depends(get_db)):
     user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT 
     session_id = login()
-    s_id = request.cookies.get("s_id")
+    s_id = request.cookies.get("s_id") # session id 
     try:
         if not user_api_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
@@ -85,11 +85,11 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
         # 인가 코드 생성
         authorization_code = hex(random.getrandbits(128))[2:]
         
-        # Redis INSERT -> session 키 : 인가 코드  
+        # Redis INSERT -> key : value (session id : authorization code)  
         rd.set(s_id,authorization_code)
         
         # 리디렉션 URL에 인가 코드를 포함하여 반환
-        redirect_url = f"{redirect_uri}?code={authorization_code}" # redirce_url 
+        redirect_url = f"{redirect_uri}?code={authorization_code}" # redirect_url 
         response.status_code = status.HTTP_302_FOUND
         response.headers["Location"] = redirect_url
         return {"message" : "Redirecting with authorization code"}       

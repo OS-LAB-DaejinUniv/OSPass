@@ -1,5 +1,6 @@
 import random
 import const
+import logging
 from fastapi import APIRouter
 from database import redis_config
 
@@ -15,7 +16,7 @@ rd = redis_config()
 @challenge_router.get("/v1/challenge")
 def gen_challenge():
     if rd is None:
-        return {"Error" : "Redis connection failed"}
+        logging.error(msg="redis connection fail")
     
     # 128 bit challenge generate
     challenge = random.getrandbits(128)

@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.types import TIMESTAMP
 from conn_postgre import Base
 
+# created
 class OsMember(Base):
     __tablename__ = "osmember"
     
@@ -12,14 +13,15 @@ class OsMember(Base):
     
     # OsMember와 APIKeyLog 테이블 간 관계 설정
     apikey_logs = relationship("APIKeyLog", back_populates="os_member")
-    
+
+# created
 class APIKeyLog(Base):
     __tablename__ = "apikeylog"
     
-    id = Column(Integer,primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)
     key = Column(String, unique=True)
     uuid = Column(String, ForeignKey('osmember.uuid'))
     timestamp = Column(TIMESTAMP) # key 생성 시간
-    source = "" # Api key 사용 출처
+    source = Column(String) # Api key 사용 출처 
     
     os_member = relationship("OsMember", back_populates="apikey_logs")
