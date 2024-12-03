@@ -5,17 +5,17 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Union, Any
 from fastapi import Depends, HTTPException, status, APIRouter, Response, Request
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-
+from challenge import gen_challenge
 from schemes import User
 from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 import database
 from conn_arduino.dec_data import conn_hsm
-from log_manage import login
 load_dotenv()
 # router 설정
 verify_router = APIRouter(prefix="/api")
@@ -27,24 +27,30 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # login 시 호출 될 API
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
+# 앱이 호출 할 API임
 @verify_router.post("/v1/card-response")
-async def verify_card_response(data, gen_challenge, response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(response : Response, db: Session = Depends(get_db)):
     try:
         import binascii
-        # 앱에서 전달된 데이터 복호화
-        dec_data = conn_hsm.decrypt(data=binascii.unhexlify(data))
+        # 아두이노에서 복호화 된 데이터 
+        # return {result} 값 할당
+        dec_data = conn_hsm.decrypt(data=binascii.unhexlify())
+        print(f"Decrypted data: {dec_data.hex()}")  # 복호화된 데이터 출력
+        
+        # 챌린지 값만 추출 -> 슬라이싱 해야함
+        dec_challenge = dec_data.hex()  
+        print(f"Extracted challenge: {dec_challenge}")
+        
+        # UUID 값만 추출 -> 슬라이싱 해야함
+        dec_uuid = dec_data.hex()
+        print(f"Extracted UUID: {dec_uuid}")
         
         # Redis에서 기존 challenge 키로 저장된 값 조회
-        stored_challenge = rd.get(gen_challenge)
+        stored_challenge = rd.get(gen_challenge("key"))
         if stored_challenge is None:
             raise HTTPException(status_code=404, detail="Key not found or expired")
         
         print(f"Challenge in Redis: {stored_challenge.decode()}")  # Redis에서 가져온 챌린지 값 출력
-        print(f"Decrypted data: {dec_data.hex()}")  # 복호화된 데이터 출력
-        
-        # 챌린지 값만 추출 (예시, 실제 데이터 구조에 맞게 수정 필요)
-        dec_challenge = dec_data.hex()  
-        print(f"Extracted challenge: {dec_challenge}")
         
         # 저장된 챌린지 값과 비교
         if stored_challenge.decode() == dec_challenge:
@@ -54,14 +60,14 @@ async def verify_card_response(data, gen_challenge, response : Response, db: Ses
             raise HTTPException(status_code=400, detail="Invalid response")
         
         # UUID 확인
-        member_uuid = db.query(OsMember).filter(OsMember.uuid == dec_data.hex()).first()
+        member_uuid = db.query(OsMember).filter(OsMember.uuid == dec_uuid).first()
         if not member_uuid:
             print("Member not found in database")
             raise HTTPException(status_code=404, detail="Member not found")
         
         import uuid
         s_id = str(uuid.uuid4()) # 세션 아이디 하나 생성
-        response.set_cookie(key="s_id", value=s_id, httponly=True)
+        response.set_cookie(key="s_id", value=s_id, httponly=True, secure=True)
         return {"message": "NFC Authentication Successful", "s_id" : {s_id}}
     
     except Exception as e:
@@ -72,15 +78,17 @@ async def verify_card_response(data, gen_challenge, response : Response, db: Ses
 # 서비스 서버에서 인가 코드 요청(로그인(유저 검증)을 한 후) 했을 시 기능 수행
 @verify_router.get("/v1/authorization-code")
 def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Response, request : Request, db : Session = Depends(get_db)):
-    user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT 
-    session_id = login()
-    s_id = request.cookies.get("s_id") # session id 
     try:
+        if not verify_card_response():
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized Card Data")
+        
+        user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT
+        s_id = request.cookies.get("s_id") # session id
+         
         if not user_api_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
-        if not session_id:
+        if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Unauthorized User")
-        
         
         # 인가 코드 생성
         authorization_code = hex(random.getrandbits(128))[2:]
@@ -88,7 +96,7 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
         # Redis INSERT -> key : value (session id : authorization code)  
         rd.set(s_id,authorization_code)
         
-        # 리디렉션 URL에 인가 코드를 포함하여 반환
+        # 리다이렉션 URL에 인가 코드를 포함하여 반환
         redirect_url = f"{redirect_uri}?code={authorization_code}" # redirect_url 
         response.status_code = status.HTTP_302_FOUND
         response.headers["Location"] = redirect_url
@@ -97,7 +105,7 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
 
 @verify_router.get("/v1/callback")
-async def ospass_login_callback(code : str, request : Request):
+async def ospass_login_callback(code : str, redirect_uri : str, request : Request):
     try:
         s_id = request.cookies.get("s_id") # cookie에서 s_id 가져옴
         if not s_id:
@@ -107,12 +115,17 @@ async def ospass_login_callback(code : str, request : Request):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Authorization Code not found")
         if auth_code.decode() != code:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid Authorization code")
+        
+        # access token 발급
         access_token = await issue_access_token(code)
-        return access_token
+        
+        # access token 가진 채로 클라이언트를 redirection 함
+        redirec_url = f"{redirec_url}?token={access_token}"
+        return RedirectResponse(redirec_url)
     except:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid Authorization code")
 
-@verify_router.post("/v1/access-token")
+# access token issue
 def issue_access_token(code: str, request : Request,expires_delta: timedelta | None = None):
     # 1. Redis에서 s_id 및 Authorization Code 조회
     s_id = request.cookies.get("s_id")  # 클라이언트 쿠키에서 s_id 가져옴
@@ -144,12 +157,6 @@ def issue_access_token(code: str, request : Request,expires_delta: timedelta | N
     # 5. 반환
     return {"access_token": access_token, "token_type": "bearer"}
  
-
-
-
-
-
-
 
 def authentication_user(db, session_id : str):
     user = get_user(db, session_id)
