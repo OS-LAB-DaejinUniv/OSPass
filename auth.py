@@ -120,8 +120,8 @@ async def ospass_login_callback(code : str, redirect_uri : str, request : Reques
         access_token = await issue_access_token(code)
         
         # access token 가진 채로 클라이언트를 redirection 함
-        redirec_url = f"{redirec_url}?token={access_token}"
-        return RedirectResponse(redirec_url)
+        redirect_url = f"{redirect_uri}?token={access_token}"
+        return RedirectResponse(redirect_url)
     except:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid Authorization code")
 
