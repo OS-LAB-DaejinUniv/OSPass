@@ -4,11 +4,14 @@
 
 ---
 
-**OSPASS API Guide Line**
-- 사용 API 목록
-  - GET api.oslab/api/v1/card-response
-  - GET api.oslab/api/v1/authorization-code
-  - POST api.oslab/api/v1/access-token
+**OSPASS API Guide Line** 
+---
+**- OS Utility APP**
+  - POST api.oslab/api/v1/card-response
+  
+**- OSPASS**
+- GET api.oslab/api/v1/authorization-code
+- GET api.oslab/api/v1/callback
 
 ---
 
