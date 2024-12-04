@@ -1,0 +1,79 @@
+# API-KEY 사용 관리 및 내역 확인
+from fastapi import HTTPException, status, Request, APIRouter, Depends
+import binascii
+import logging
+import random
+from models import OsMember, APIKeyLog
+from conn_postgre import get_db
+from sqlalchemy.orm import Session
+from .token_handler import Token_Handler
+from conn_arduino.dec_data import conn_hsm
+from jose import jwt, JWTError
+
+api_key_manage = APIRouter(prefix="/api")
+
+token = Token_Handler() # JWT 관련 클래스 객체 생성
+
+# OStools App에서 최초 로그인 시 사용
+# JWT 방식 -> Remember Me(자동 로그인:세션유지) 
+api_key_manage.post("/v1/login")
+def login(uuid : str, db : Session = Depends(get_db)):
+    dec_uuid = conn_hsm.decrypt(data=binascii.unhexlify(uuid)) # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
+    member_ssid = db.query(OsMember).filter(OsMember.uuid == dec_uuid.get("card_uuid")).first() # DB의 사용자 UUID와 복호화 된 UUID 검증
+    # Arduino의 복호화 된 데이터 중 uuid 부분과 검증
+    if member_ssid is None: 
+        raise HTTPException(status_code=404,
+                            detail="해당 UUID가 존재하지 않음")
+        
+    access_token = token.create_access_token(data={"sub" : member_ssid.uuid}) # access token 생성
+    refresh_token = token.create_refresh_token(data={"sub" : member_ssid.uuid}) # refresh token 생성
+    return {
+        "status" : status.HTTP_200_OK,
+        "access_token" : access_token,
+        "refresh_token" : refresh_token,
+        "token_type" : "bearer",
+        "message" : "Login Success"
+    }
+    
+# OStools APP에서 로그인 후 상태 유지 리프레시 토큰 발급 API
+# refresh token : login api에서 응답으로 오는 refresh token
+api_key_manage.post("/v1/refresh-token")
+def refresh_token(refresh_token : str):
+    # 예외 처리
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Refresh Token",
+        headers={"WWW-Authenticate" : "Bearer"}
+    )
+    try:
+        payload = jwt.decode(refresh_token, token.REFRESH_SECRET_KEY, algorithms=[token.ALGORITHM])
+        user_uuid : str = payload.get("sub")
+        if user_uuid is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    new_access_token = token.create_access_token(data={"sub" : user_uuid})
+    return {
+        "status" : status.HTTP_200_OK,
+        "access_token" : new_access_token,
+        "token_type" : "bearer",
+        "message" : "Access Token refreshed successfully"
+    }
+   
+# 로그인 된 사용자가 API KEY 발급 시 호출
+# API KEY 생성하기
+# api key 생성, 해당 uuid와 api key 매핑 후 Insert to Apikeylog table
+# 매개변수 => uuid : JWT에 적혀있는 sub : user_uuid 
+@api_key_manage.get("/v1/api-key")
+def gen_api_key(uuid : str, db:Session=Depends(get_db)):
+    try:
+        if login().get("access_token"): # access token이 존재하면
+            new_api_key = APIKeyLog(key=hex(random.getrandbits(128)), user_uuid=uuid) # mapping
+            db.add(new_api_key) # generated api key & user's uuid insert to APIKeyLog Table
+            db.commit()
+            return {"status" : status.HTTP_200_OK, "api-key" : {new_api_key}}
+    except Exception as e:
+        logging.error(f"Error generating API KEY : {e}")
+        return {"status" : status.HTTP_401_UNAUTHORIZED, "detail" : "Unauthorized"}
+

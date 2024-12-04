@@ -16,7 +16,10 @@ from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 import database
 from conn_arduino.dec_data import conn_hsm
+from schemes import Token
+
 load_dotenv()
+
 # router 설정
 verify_router = APIRouter(prefix="/api")
 
@@ -35,14 +38,14 @@ async def verify_card_response(response : Response, db: Session = Depends(get_db
         # 아두이노에서 복호화 된 데이터 
         # return {result} 값 할당
         dec_data = conn_hsm.decrypt(data=binascii.unhexlify())
-        print(f"Decrypted data: {dec_data.hex()}")  # 복호화된 데이터 출력
+        print(f"Decrypted data: {dec_data}")  # 복호화된 데이터 출력
         
-        # 챌린지 값만 추출 -> 슬라이싱 해야함
-        dec_challenge = dec_data.hex()  
+        # 챌린지 값만 추출
+        dec_challenge = dec_data.get('response')  
         print(f"Extracted challenge: {dec_challenge}")
         
-        # UUID 값만 추출 -> 슬라이싱 해야함
-        dec_uuid = dec_data.hex()
+        # UUID 값만 추출 -> 슬라이싱 해야함 ok
+        dec_uuid = dec_data.get('card_uuid')
         print(f"Extracted UUID: {dec_uuid}")
         
         # Redis에서 기존 challenge 키로 저장된 값 조회
@@ -104,12 +107,14 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
     except:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
 
+# 발급 받은 인가 코드를 통해 access token 발급해주고 redirection 진행
 @verify_router.get("/v1/callback")
 async def ospass_login_callback(code : str, redirect_uri : str, request : Request):
     try:
         s_id = request.cookies.get("s_id") # cookie에서 s_id 가져옴
         if not s_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Session ID not found")
+        # 인가 코드 redis에서 가져온 후 검증
         auth_code = rd.get(s_id)
         if not auth_code:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Authorization Code not found")
@@ -121,12 +126,12 @@ async def ospass_login_callback(code : str, redirect_uri : str, request : Reques
         
         # access token 가진 채로 클라이언트를 redirection 함
         redirect_url = f"{redirect_uri}?token={access_token}"
-        return RedirectResponse(redirect_url)
+        return RedirectResponse(url=redirect_url)
     except:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid Authorization code")
 
 # access token issue
-def issue_access_token(code: str, request : Request,expires_delta: timedelta | None = None):
+def issue_access_token(code: str, response : Response, request : Request,expires_delta: timedelta | None = None):
     # 1. Redis에서 s_id 및 Authorization Code 조회
     s_id = request.cookies.get("s_id")  # 클라이언트 쿠키에서 s_id 가져옴
     if not s_id:
@@ -150,13 +155,17 @@ def issue_access_token(code: str, request : Request,expires_delta: timedelta | N
     to_encode.update({"exp": expire})  # 토큰 만료 시간 설정
 
     access_token = jwt.encode(to_encode, os.getenv("ACCESS_SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))
-
+    response.set_cookie(key="access_token", value=access_token, expires=expire, httponly=True)
+    
     # 4. Redis에서 Authorization Code 삭제 (재사용 방지)
     rd.delete(s_id)
-
+    
     # 5. 반환
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
  
+
+
+
 
 def authentication_user(db, session_id : str):
     user = get_user(db, session_id)

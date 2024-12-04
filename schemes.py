@@ -20,4 +20,5 @@ class Token(BaseModel):
 
 # JWT에 담고있을 사용자 정보 스키마
 class TokenData(BaseModel):
-    uuid : str
+    sub : str
+    iat : str

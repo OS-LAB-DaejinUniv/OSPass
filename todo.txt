@@ -1,5 +1,7 @@
 --- 
 1. auth.py :
+- refresh token 만들기
+- test 해보기
 
 2. log_manage.py 
 - apikeylog db 테이블 생성해야 함 OK 
@@ -10,3 +12,8 @@
 - 생성된 api key는 ApiKeyLog 테이블에 저장 + 해당 uuid도 같이 저장 
 - 언제 api key를 발급했는지 timestamp 저장
 - api key를 어디에 사용했는지 사용 출처 -> null로 두고 사용되면 추적 후 DB에 저장 -> 해야됨
+
+- 앱에서 최초 로그인 후 세션 유지 시켜놔야 함 -> login api 수정
+
+3. 웹에서 OSPASS 로그인 사용 시 전화번호, 이름을 기재하는 로그인 API 만들기
+-> api가 호출되고 전번, 이름 검증되면 서버가 앱한테 푸시 알림 띄우라고 해야함(NFC로 인증합시다)

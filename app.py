@@ -11,7 +11,7 @@ import secrets
 
 from challenge import challenge_router
 from auth import verify_router
-from log_manage import api_key_manage
+from ostools.log_manage import api_key_manage
 
 
 app = FastAPI()
