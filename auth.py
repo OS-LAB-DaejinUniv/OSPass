@@ -7,7 +7,6 @@ from typing import Optional, Union, Any
 from fastapi import Depends, HTTPException, status, APIRouter, Response, Request
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from challenge import gen_challenge
@@ -32,12 +31,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
 # 앱이 호출 할 API임
 @verify_router.post("/v1/card-response")
-async def verify_card_response(response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(data : str,response : Response, db: Session = Depends(get_db)):
     try:
         import binascii
         # 아두이노에서 복호화 된 데이터 
         # return {result} 값 할당
-        dec_data = conn_hsm.decrypt(data=binascii.unhexlify())
+        dec_data = conn_hsm.decrypt(data=binascii.unhexlify(data))
         print(f"Decrypted data: {dec_data}")  # 복호화된 데이터 출력
         
         # 챌린지 값만 추출
@@ -109,7 +108,7 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
 
 # 발급 받은 인가 코드를 통해 access token 발급해주고 redirection 진행
 @verify_router.get("/v1/callback")
-async def ospass_login_callback(code : str, redirect_uri : str, request : Request):
+def ospass_login_callback(code : str, redirect_uri : str, request : Request):
     try:
         s_id = request.cookies.get("s_id") # cookie에서 s_id 가져옴
         if not s_id:
@@ -122,7 +121,7 @@ async def ospass_login_callback(code : str, redirect_uri : str, request : Reques
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid Authorization code")
         
         # access token 발급
-        access_token = await issue_access_token(code)
+        access_token = issue_access_token(code, request)
         
         # access token 가진 채로 클라이언트를 redirection 함
         redirect_url = f"{redirect_uri}?token={access_token}"
@@ -131,8 +130,8 @@ async def ospass_login_callback(code : str, redirect_uri : str, request : Reques
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid Authorization code")
 
 # access token issue
-def issue_access_token(code: str, response : Response, request : Request,expires_delta: timedelta | None = None):
-    # 1. Redis에서 s_id 및 Authorization Code 조회
+def issue_access_token(code: str, response : Response, request : Request, expires_delta: timedelta | None = None):
+    # Redis에서 s_id 및 Authorization Code 조회
     s_id = request.cookies.get("s_id")  # 클라이언트 쿠키에서 s_id 가져옴
     if not s_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session ID not found")
@@ -141,31 +140,56 @@ def issue_access_token(code: str, response : Response, request : Request,expires
     if not stored_code:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Authorization Code not found")
 
-    # 2. Authorization Code 검증
+    # Authorization Code 검증
     stored_code = stored_code.decode()  # Redis 값은 bytes 타입이므로 decode 필요
     if stored_code != code:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Authorization Code")
 
-    # 3. 액세스 토큰 생성
+    # 액세스 토큰 생성
     to_encode = {
         "sub": s_id,  # 사용자 세션 ID
         "iat": datetime.now(ZoneInfo("Asia/Seoul")).timestamp()  # 토큰 발급 시간
     }
-    expire = datetime.now(ZoneInfo("Asia/Seoul")) + (expires_delta or timedelta(minutes=15))
+    expire = datetime.now(ZoneInfo("Asia/Seoul")) + (expires_delta or timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))))
     to_encode.update({"exp": expire})  # 토큰 만료 시간 설정
 
     access_token = jwt.encode(to_encode, os.getenv("ACCESS_SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))
     response.set_cookie(key="access_token", value=access_token, expires=expire, httponly=True)
     
-    # 4. Redis에서 Authorization Code 삭제 (재사용 방지)
+    # refresh token 생성 및 저장
+    refresh_token = jwt.encode({"sub" : s_id, "iat" :  datetime.now(ZoneInfo("Asia/Seoul")).timestamp(),
+                                "exp" : expire + timedelta(days=30)}, os.getenv("REFRESH_SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))
+    rd.set(f"refresh_token:{s_id}", refresh_token, ex=os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES")) # 
+    
+    # Redis에서 Authorization Code 삭제 (재사용 방지)
     rd.delete(s_id)
     
-    # 5. 반환
     return Token(access_token=access_token, token_type="bearer")
- 
 
-
-
+# Refresh Token 발급 API
+@verify_router.post("/v1/refresh-token") 
+def issue_refresh_token(request : Request, response : Response):
+    refresh_token = request.cookies.get("refresh_token") # 쿠키에서 Refresh Token 가져오기
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
+    
+    try:
+        payload = jwt.decode(refresh_token, os.getenv("REFRESH_SECRET_KEY"), algorithms=[os.getenv("ALGORITHM")])
+        s_id = payload["sub"]
+    except Exception:
+        raise JWTError(status.HTTP_401_UNAUTHORIZED,"Refresh Token Expired")
+    except Exception:
+        raise JWTError(status.HTTP_401_UNAUTHORIZED, "Invalid Refresh Token")
+    
+    # Redis에서 Refresh Token 검증
+    stored_refresh_token = rd.get(f"refresh_token:{s_id}")
+    if stored_refresh_token is None or stored_refresh_token.decode() != refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Refresh Token")
+    
+    # New Access Token 발급
+    new_access_token = issue_access_token(stored_refresh_token.decode(), response, request)
+    
+    return new_access_token
 
 def authentication_user(db, session_id : str):
     user = get_user(db, session_id)

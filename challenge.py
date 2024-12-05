@@ -13,7 +13,6 @@ rd = redis_config()
 # 걍 uuid랑 challenge 랜덤하게 생성하고 레디스에 담을거임
 # 그리고 이 생성된 값으로 검증할거임
 # 뭘 검증? 생성된 value(challenge) 랑 카드에 담겨져 있는 response랑 비교함
-@challenge_router.get("/v1/challenge")
 def gen_challenge():
     if rd is None:
         logging.error(msg="redis connection fail")
