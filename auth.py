@@ -14,7 +14,7 @@ from schemes import User
 from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 import database
-from conn_arduino.dec_data import conn_hsm
+from decrypt import decrypt_pp
 from schemes import Token
 
 load_dotenv()
@@ -31,21 +31,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
 # 앱이 호출 할 API임
 @verify_router.post("/v1/card-response")
-async def verify_card_response(data : str,response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(data : str, response : Response, db: Session = Depends(get_db)):
     try:
-        import binascii
-        # 아두이노에서 복호화 된 데이터 
-        # return {result} 값 할당
-        dec_data = conn_hsm.decrypt(data=binascii.unhexlify(data))
-        print(f"Decrypted data: {dec_data}")  # 복호화된 데이터 출력
-        
-        # 챌린지 값만 추출
-        dec_challenge = dec_data.get('response')  
-        print(f"Extracted challenge: {dec_challenge}")
-        
-        # UUID 값만 추출 -> 슬라이싱 해야함 ok
-        dec_uuid = dec_data.get('card_uuid')
-        print(f"Extracted UUID: {dec_uuid}")
+        decrypted = decrypt_pp(data)
+        decrypted_uuid = decrypted.get("card_uuid")
+        decrypted_response = decrypted.get("response")
+        print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
         
         # Redis에서 기존 challenge 키로 저장된 값 조회
         stored_challenge = rd.get(gen_challenge("key"))
@@ -55,14 +46,14 @@ async def verify_card_response(data : str,response : Response, db: Session = Dep
         print(f"Challenge in Redis: {stored_challenge.decode()}")  # Redis에서 가져온 챌린지 값 출력
         
         # 저장된 챌린지 값과 비교
-        if stored_challenge.decode() == dec_challenge:
+        if stored_challenge.decode() == decrypted_response:
             print("Challenge match: correct")
         else:
             print("Challenge match: incorrect")
             raise HTTPException(status_code=400, detail="Invalid response")
         
         # UUID 확인
-        member_uuid = db.query(OsMember).filter(OsMember.uuid == dec_uuid).first()
+        member_uuid = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first()
         if not member_uuid:
             print("Member not found in database")
             raise HTTPException(status_code=404, detail="Member not found")

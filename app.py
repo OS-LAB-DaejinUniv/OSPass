@@ -9,7 +9,6 @@ import uvicorn
 import logging
 import secrets
 
-from challenge import challenge_router
 from auth import verify_router
 from ostools.log_manage import api_key_manage
 
@@ -59,7 +58,6 @@ async def proxy_log(request: Request):
     return ip
 
 # 라우터 포함
-app.include_router(challenge_router)
 app.include_router(verify_router)
 app.include_router(api_key_manage)
 

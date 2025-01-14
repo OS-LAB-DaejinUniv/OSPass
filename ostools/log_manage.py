@@ -7,19 +7,23 @@ from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 from sqlalchemy.orm import Session
 from .token_handler import Token_Handler
-from conn_arduino.dec_data import conn_hsm
 from jose import jwt, JWTError
+from decrypt import decrypt_pp
 
 api_key_manage = APIRouter(prefix="/api")
 
 token = Token_Handler() # JWT 관련 클래스 객체 생성
 
+### 변경 될 가능성 있음 -> 카드로 로그인 하지 않고 이름과 전화번호로 로그인 할 수도 있음 ###
+# -> 카드에 미리 전화번호도 담아두고 이름, 전화번호, UUID 슬라이싱 후 로그인 하는 건 어떨까 
 # OStools App에서 최초 로그인 시 사용
 # JWT 방식 -> Remember Me(자동 로그인:세션유지) 
 api_key_manage.post("/v1/login")
-def login(uuid : str, db : Session = Depends(get_db)):
-    dec_uuid = conn_hsm.decrypt(data=binascii.unhexlify(uuid)) # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
-    member_ssid = db.query(OsMember).filter(OsMember.uuid == dec_uuid.get("card_uuid")).first() # DB의 사용자 UUID와 복호화 된 UUID 검증
+def login(data : str, db : Session = Depends(get_db)):
+    decrypted = decrypt_pp(data)
+    decrypted_uuid = decrypted.get("card_uuid") # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
+     
+    member_ssid = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first() # DB의 사용자 UUID와 복호화 된 UUID 검증
     # Arduino의 복호화 된 데이터 중 uuid 부분과 검증
     if member_ssid is None: 
         raise HTTPException(status_code=404,

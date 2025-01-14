@@ -4,7 +4,6 @@ import logging
 from fastapi import APIRouter
 from database import redis_config
 
-challenge_router = APIRouter(prefix="/api")
 rd = redis_config()
 
 # challenge 생성
