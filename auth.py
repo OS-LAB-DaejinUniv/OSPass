@@ -27,6 +27,13 @@ rd = database.redis_config()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Challege 발급 
+def issued_challenge():
+    generated_challege = gen_challenge()
+    challennge_key = generated_challege["key"]
+    stored_challege = rd.get(challennge_key)
+    return stored_challege
+
 # login 시 호출 될 API
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
 # 앱이 호출 할 API임
@@ -38,15 +45,15 @@ async def verify_card_response(data : str, response : Response, db: Session = De
         decrypted_response = decrypted.get("response")
         print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
         
-        # Redis에서 기존 challenge 키로 저장된 값 조회
-        stored_challenge = rd.get(gen_challenge("key"))
-        if stored_challenge is None:
+        # Redis에서 챌린지 return 값
+        stored_challenge = issued_challenge()
+        if  stored_challenge is None:
             raise HTTPException(status_code=404, detail="Key not found or expired")
         
-        print(f"Challenge in Redis: {stored_challenge.decode()}")  # Redis에서 가져온 챌린지 값 출력
+        print(f"Challenge in Redis: {stored_challenge}")  # Redis에서 가져온 챌린지 값 출력
         
         # 저장된 챌린지 값과 비교
-        if stored_challenge.decode() == decrypted_response:
+        if decrypted_response == stored_challenge:
             print("Challenge match: correct")
         else:
             print("Challenge match: incorrect")
