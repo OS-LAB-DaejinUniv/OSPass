@@ -12,7 +12,15 @@ class User(BaseModel):
     
     class Config:
         orm_mode = True
-        
+
+# Card Data Validation
+class Card_Data(BaseModel):
+    card_data : str 
+
+# Card - Redis Data Validation
+class SessionKey(BaseModel):
+    session : str
+    
 # Token Scheme
 class Token(BaseModel):
     access_token: str
@@ -22,4 +30,4 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     sub : str
     iat : str
-    
+

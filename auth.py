@@ -4,13 +4,13 @@ import random
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Union, Any
-from fastapi import Depends, HTTPException, status, APIRouter, Response, Request
+from fastapi import Depends, HTTPException, status, APIRouter, Response, Request, Body
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from challenge import gen_challenge
-from schemes import User
+from schemes import User, Card_Data, SessionKey
 from models import OsMember, APIKeyLog
 from conn_postgre import get_db
 import database
@@ -52,37 +52,48 @@ def get_or_issue_challenge(user_session : str):
 def issued_challenge(user_session : str):
     return get_or_issue_challenge(user_session)
 
+# Card Response 검증 Function
+# data : 카드에 담겨 온 Data
+# user_session : 사용자 세션 ID
+def verify_card_response_logic(data:Card_Data, user_session:SessionKey, db:Session):
+    decrypted = decrypt_pp(data)
+    decrypted_uuid = decrypted.get("card_uuid")
+    decrypted_response = decrypted.get("response")
+    print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
+
+    # Redis에서 챌린지 return 값
+    stored_challenge = get_or_issue_challenge(user_session).decode().upper()
+    if not stored_challenge:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    print(f"Challenge in Redis : {stored_challenge}, Response : {decrypted_response}")
+    
+    # Challenge 값 검증
+    if stored_challenge != decrypted_response:
+        print("Challenge match: incorrect")
+        raise HTTPException(status_code=400, detail="Invalid response")
+    print("Challenge match: correct")
+    
+    # UUID 확인
+    member_uuid = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first()
+    if not member_uuid:
+        print("Member not found in database")
+        raise HTTPException(status_code=404, detail="Member not found")
+    return decrypted_uuid
+
 # login 시 호출 될 API
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
 # 앱이 호출 할 API임
 @verify_router.post("/v1/card-response")
-async def verify_card_response(data : str, user_session : str, response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(data : Card_Data, user_session : SessionKey, response : Response, db: Session = Depends(get_db)):
     try:
-        decrypted = decrypt_pp(data)
-        decrypted_uuid = decrypted.get("card_uuid")
-        decrypted_response = decrypted.get("response")
-        print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
-        
-        # Redis에서 챌린지 return 값
-        stored_challenge = get_or_issue_challenge(user_session).decode().upper()
-        if stored_challenge is None:
-            raise HTTPException(status_code=404, detail="Session not found or expired")
-        
-        print(f"Challenge in Redis: {stored_challenge}")  # Redis에서 가져온 챌린지 값 출력
-        
-        # 저장된 챌린지 값과 비교
-        if stored_challenge == decrypted_response:
-            print("Challenge match: correct")
-        else:
-            print("Challenge match: incorrect")
-            raise HTTPException(status_code=400, detail="Invalid response")
-        
-        # UUID 확인
-        member_uuid = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first()
-        if not member_uuid:
-            print("Member not found in database")
+        decrypted_uuid = verify_card_response_logic(data, user_session, db)
+        print(f"Decrypted MY-UUID: {decrypted_uuid}")
+        # My-UUID(Card)와 DB에 저장된 UUID가 일치하는지 확인
+        verify_result = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first()
+        if not verify_result:
             raise HTTPException(status_code=404, detail="Member not found")
         
+        # 일치하면 Session ID 발급 후 쿠키에 저장
         import uuid
         s_id = str(uuid.uuid4()) # 세션 아이디 하나 생성
         response.set_cookie(key="s_id", value=s_id, httponly=True, secure=True)
@@ -97,16 +108,14 @@ async def verify_card_response(data : str, user_session : str, response : Respon
 @verify_router.get("/v1/authorization-code")
 def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Response, request : Request, db : Session = Depends(get_db)):
     try:
-        if not verify_card_response():
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized Card Data")
-        
-        user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT
-        s_id = request.cookies.get("s_id") # session id
-         
-        if not user_api_key:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
+        # My-Session ID
+        s_id = request.cookies.get("s_id")
         if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Unauthorized User")
+        # My-API KEY
+        user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT 
+        if not user_api_key:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
         
         # 인가 코드 생성
         authorization_code = hex(random.getrandbits(128))[2:]
