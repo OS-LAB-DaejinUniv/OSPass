@@ -10,6 +10,7 @@ h11==0.14.0
 idna==3.10
 iniconfig==2.0.0
 packaging==24.2
+pillow==11.1.0
 pluggy==1.5.0
 psycopg2-binary==2.9.9
 pyasn1==0.6.1
@@ -22,6 +23,7 @@ pytest==8.3.3
 pytest-asyncio==0.24.0
 python-dotenv==1.0.1
 python-jose==3.3.0
+qrcode==8.0
 redis==5.1.0
 rsa==4.9
 six==1.16.0

@@ -16,6 +16,7 @@ from conn_postgre import get_db
 import database
 from decrypt import decrypt_pp
 from schemes import Token
+import const
 
 load_dotenv()
 
@@ -27,27 +28,35 @@ rd = database.redis_config()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Challege 발급
-def issued_challenge(challenge : str):
-   
-    # Redis 저장된 value(challenge) 값이 있는지 확인
-    if rd.exists(challenge):
-        stored_challege = rd.get(challenge)
-        return stored_challege
+# Challege 발급 Function
+def get_or_issue_challenge(user_session : str):
     
+    # exists -> user_session이 존재하는지 확인
+    # Redis 저장된 value(challenge) 값이 있는지 확인
+    if rd.exists(user_session):
+        stored_challege = rd.get(user_session)
+        print(f"Stored Challenge: {stored_challege}")
+        return stored_challege if stored_challege else None
+
     # Redis에 저장된 value(challenge) 값이 없을 경우
     generated_challenge = gen_challenge()
-    key_uuid = generated_challenge["key"] 
+    # key_uuid = generated_challenge["key"] 
     value_challenge = generated_challenge["value"]
-    rd.set(key_uuid,value_challenge)
-    rd.expire(key_uuid, int(os.getenv("EXPIRE_KEY")))
+    rd.set(user_session,value_challenge)
+    print(f'[get_or_issue_challenge] Issued. {user_session} -> {value_challenge}')
+    rd.expire(user_session, const.EXPIRE_KEY)
     return value_challenge
+
+# Challenge 발급 API -> 앱에서 호출 할 API
+@verify_router.get("/v1/auth-init")
+def issued_challenge(user_session : str):
+    return get_or_issue_challenge(user_session)
 
 # login 시 호출 될 API
 # 카드에 담겨 온 Response와 Challenge 값 검증 및 UUID 검증
 # 앱이 호출 할 API임
 @verify_router.post("/v1/card-response")
-async def verify_card_response(data : str, response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(data : str, user_session : str, response : Response, db: Session = Depends(get_db)):
     try:
         decrypted = decrypt_pp(data)
         decrypted_uuid = decrypted.get("card_uuid")
@@ -55,14 +64,14 @@ async def verify_card_response(data : str, response : Response, db: Session = De
         print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
         
         # Redis에서 챌린지 return 값
-        stored_challenge = issued_challenge(decrypted_response)
-        if  stored_challenge is None:
-            raise HTTPException(status_code=404, detail="Key not found or expired")
+        stored_challenge = get_or_issue_challenge(user_session).decode().upper()
+        if stored_challenge is None:
+            raise HTTPException(status_code=404, detail="Session not found or expired")
         
         print(f"Challenge in Redis: {stored_challenge}")  # Redis에서 가져온 챌린지 값 출력
         
         # 저장된 챌린지 값과 비교
-        if decrypted_response == stored_challenge:
+        if stored_challenge == decrypted_response:
             print("Challenge match: correct")
         else:
             print("Challenge match: incorrect")

@@ -1,7 +1,6 @@
 import random
 import const
 import logging
-from fastapi import APIRouter
 from database import redis_config
 
 rd = redis_config()

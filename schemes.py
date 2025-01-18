@@ -22,3 +22,4 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     sub : str
     iat : str
+    
