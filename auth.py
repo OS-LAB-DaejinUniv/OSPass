@@ -3,7 +3,6 @@ import os
 import random
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from typing import Optional, Union, Any
 from fastapi import Depends, HTTPException, status, APIRouter, Response, Request, Body
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -13,10 +12,12 @@ from challenge import gen_challenge
 from schemes import User, Card_Data, SessionKey
 from models import OsMember, APIKeyLog
 from conn_postgre import get_db
+# from ostools.qrcode import generate_qr # QR Code 생성 Function
 import database
 from decrypt import decrypt_pp
 from schemes import Token
 import const
+
 
 load_dotenv()
 
@@ -29,14 +30,15 @@ rd = database.redis_config()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Challege 발급 Function
-def get_or_issue_challenge(user_session : str):
+def get_or_issue_challenge(user_session : SessionKey):
     
     # exists -> user_session이 존재하는지 확인
     # Redis 저장된 value(challenge) 값이 있는지 확인
     if rd.exists(user_session):
         stored_challege = rd.get(user_session)
-        print(f"Stored Challenge: {stored_challege}")
-        return stored_challege if stored_challege else None
+        decoded_challenge = stored_challege.decode()
+        print(f"Stored Challenge: {decoded_challenge}")
+        return decoded_challenge if decoded_challenge else None
 
     # Redis에 저장된 value(challenge) 값이 없을 경우
     generated_challenge = gen_challenge()
@@ -47,10 +49,16 @@ def get_or_issue_challenge(user_session : str):
     rd.expire(user_session, const.EXPIRE_KEY)
     return value_challenge
 
-# Challenge 발급 API -> 앱에서 호출 할 API
-@verify_router.get("/v1/auth-init")
-def issued_challenge(user_session : str):
-    return get_or_issue_challenge(user_session)
+# # Challenge 발급 API -> 앱에서 호출 할 API
+# @verify_router.get("/v1/auth-init")
+# def issued_challenge(user_session : SessionKey):
+    
+#     # Applink 데이터 QR Code 생성(My-Session & Challenge 포함)
+#     QRcode = generate_qr(user_session)
+#     # My-Session(user_session)에 대한 Challenge 발급
+#     get_challenge = get_or_issue_challenge(user_session)
+    
+#     return QRcode and get_challenge
 
 # Card Response 검증 Function
 # data : 카드에 담겨 온 Data
