@@ -1,6 +1,6 @@
 **OSPASS Authenctication Architecture**
 
-![image](https://github.com/user-attachments/assets/715541f4-9763-401e-a1c3-adeb079e5366)
+![OSPASS-Architecture](https://github.com/user-attachments/assets/8409134a-b011-4b2f-82a7-7e8aa783dc0a)
 
 ---
 
