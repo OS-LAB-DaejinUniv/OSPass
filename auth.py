@@ -18,7 +18,6 @@ from decrypt import decrypt_pp
 from schemes import Token
 import const
 
-
 load_dotenv()
 
 # router 설정

@@ -17,7 +17,13 @@ token = Token_Handler() # JWT 관련 클래스 객체 생성
 ### 변경 될 가능성 있음 -> 카드로 로그인 하지 않고 이름과 전화번호로 로그인 할 수도 있음 ###
 # -> 카드에 미리 전화번호도 담아두고 이름, 전화번호, UUID 슬라이싱 후 로그인 하는 건 어떨까 
 # OStools App에서 최초 로그인 시 사용
-# JWT 방식 -> Remember Me(자동 로그인:세션유지) 
+# JWT 방식 -> Remember Me(자동 로그인:세션유지)
+
+def ostools_login(id, password, db : Session):
+    
+    
+    return True
+ 
 api_key_manage.post("/v1/login")
 def login(data : str, db : Session = Depends(get_db)):
     decrypted = decrypt_pp(data)

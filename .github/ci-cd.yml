@@ -1,0 +1,25 @@
+name: CI/CD for OSPASS
+
+on:
+  push:
+    branches:
+      - auth # auth branch에 push 될 때 마다 실행
+
+jobs:
+  build:
+    runs-on: self-hosted # self-hosted runner 사용
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: |
+          docker-compose -f .~/docker-compose.yml build
+
+      - name: Deploy
+        run: |
+          docker-compose -f .~/docker-compose.yml up -d
