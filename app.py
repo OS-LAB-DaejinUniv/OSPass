@@ -17,7 +17,7 @@ app = FastAPI()
 
 security = HTTPBasic()
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
 
 # CORS 설정
 app.add_middleware(
