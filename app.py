@@ -12,6 +12,7 @@ import secrets
 from auth import verify_router
 from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
+from _user.register import register_router
 
 app = FastAPI()
 
@@ -61,6 +62,7 @@ async def proxy_log(request: Request):
 app.include_router(verify_router)
 app.include_router(api_key_manage)
 app.include_router(ostools_api)
+app.include_router(register_router)
 
 # 서버 실행
 if __name__ == "__main__":
