@@ -2,14 +2,14 @@ from sqlalchemy.orm import Session
 from models import Users
 from schemes import JoinUser
 from fastapi import HTTPException, status, APIRouter, Depends
-from passlib import CryptoContext
+from passlib.context import CryptContext
 from conn_postgre import get_db
 import logging
 
 register_router = APIRouter(prefix="/api")
 
 # bcrypt context 초기화
-bcrypt_context = CryptoContext(schemes=["bcrypt"], deprecated="auto")
+bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # 회원가입(Register USER)
 def register_user(new_user : JoinUser, db : Session):

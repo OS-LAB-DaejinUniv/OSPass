@@ -22,6 +22,7 @@ class Users(Base):
     user_password = Column(String, nullable=False)
     phone_num = Column(String, nullable=False, unique=True)
     birth_date = Column(Date, nullable=False)
+    stud_num = Column(String, nullable=False, unique=True)
     signup_date = Column(TIMESTAMP, server_default=func.now())
     user_uuid = Column(String, nullable=True, unique=True)
     

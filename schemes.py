@@ -18,18 +18,10 @@ class User(BaseModel):
 class JoinUser(BaseModel):
     user_id : str
     user_password : str
-    hash_password : str
     phone_num : str
     stud_num : str
     birth_date : str
     user_uuid : Optional[str] = None
-    
-    @field_validator("user_password")
-    def check_password(cls, value, info:FieldValidationInfo):
-        if "user_password" in info.data and value != info.data["hash_password"]:
-            raise HTTPException(status_code=422, detail="Password is empty")
-        return value
-    
     
     class Config:
         orm_mode = True
