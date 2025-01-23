@@ -6,11 +6,8 @@ from database import redis_config
 rd = redis_config()
 
 # challenge 생성
-# 왜? 생성? => 앱에서 호출 할 api임
-# 앱은 이 api 가지고 뭘 하냐
-# 걍 uuid랑 challenge 랜덤하게 생성하고 레디스에 담을거임
-# 그리고 이 생성된 값으로 검증할거임
-# 뭘 검증? 생성된 value(challenge) 랑 카드에 담겨져 있는 response랑 비교함
+# 생성된 challenge와 카드에 담겨져 있는 response랑 비교
+# key는 어떤 것으로 할지 의논 중
 def gen_challenge():
     if rd is None:
         logging.error(msg="redis connection fail")

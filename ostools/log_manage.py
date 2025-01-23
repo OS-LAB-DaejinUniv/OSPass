@@ -1,9 +1,8 @@
 # API-KEY 사용 관리 및 내역 확인
-from fastapi import HTTPException, status, Request, APIRouter, Depends
-import binascii
+from fastapi import HTTPException, status, APIRouter, Depends
 import logging
 import random
-from models import OsMember, APIKeyLog
+from models import OsMember, APIKeyLog, Users
 from conn_postgre import get_db
 from sqlalchemy.orm import Session
 from .token_handler import Token_Handler
@@ -18,11 +17,6 @@ token = Token_Handler() # JWT 관련 클래스 객체 생성
 # -> 카드에 미리 전화번호도 담아두고 이름, 전화번호, UUID 슬라이싱 후 로그인 하는 건 어떨까 
 # OStools App에서 최초 로그인 시 사용
 # JWT 방식 -> Remember Me(자동 로그인:세션유지)
-
-def ostools_login(id, password, db : Session):
-    
-    
-    return True
  
 api_key_manage.post("/v1/login")
 def login(data : str, db : Session = Depends(get_db)):

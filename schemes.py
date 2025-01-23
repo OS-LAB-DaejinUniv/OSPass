@@ -1,7 +1,8 @@
 # Pydantic 모델 
 # 입력과 응답 데이터 정의
-
-from pydantic import BaseModel
+from fastapi import HTTPException, Form
+from pydantic import BaseModel, field_validator
+from pydantic_core.core_schema import FieldValidationInfo
 from typing import Optional
 
 # Data Validation from PostgreSQL OsMember Table
@@ -12,6 +13,32 @@ class User(BaseModel):
     
     class Config:
         orm_mode = True
+
+# Join User Data Validation
+class JoinUser(BaseModel):
+    user_id : str
+    user_password : str
+    hash_password : str
+    phone_num : str
+    stud_num : str
+    birth_date : str
+    user_uuid : Optional[str] = None
+    
+    @field_validator("user_password")
+    def check_password(cls, value, info:FieldValidationInfo):
+        if "user_password" in info.data and value != info.data["hash_password"]:
+            raise HTTPException(status_code=422, detail="Password is empty")
+        return value
+    
+    
+    class Config:
+        orm_mode = True
+
+class LoginForm:
+    def __init__(self, user_id : str = Form(...), user_password : str = Form(...)):
+        self.user_id = user_id
+        self.user_password = user_password
+        
 
 # Card Data Validation
 class Card_Data(BaseModel):

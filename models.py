@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.types import TIMESTAMP
+from sqlalchemy.types import TIMESTAMP, Date
+from sqlalchemy.sql import func # func.now() == 현재 시간
 from conn_postgre import Base
 
 # created
@@ -14,6 +15,16 @@ class OsMember(Base):
     # OsMember와 APIKeyLog 테이블 간 관계 설정
     apikey_logs = relationship("APIKeyLog", back_populates="os_member")
 
+class Users(Base):
+    __tablename__ = "users"
+    
+    user_id = Column(String, primary_key=True, index=True)
+    user_password = Column(String, nullable=False)
+    phone_num = Column(String, nullable=False, unique=True)
+    birth_date = Column(Date, nullable=False)
+    signup_date = Column(TIMESTAMP, server_default=func.now())
+    user_uuid = Column(String, nullable=True, unique=True)
+    
 # created
 class APIKeyLog(Base):
     __tablename__ = "apikeylog"
