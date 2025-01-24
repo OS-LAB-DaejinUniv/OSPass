@@ -13,12 +13,13 @@ from auth import verify_router
 from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
 from _user.register import register_router
+from _user.login import login_router
 
 app = FastAPI()
 
 security = HTTPBasic()
 
-logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.INFO)
+logging.basicConfig(level=logging.INFO & logging.DEBUG & logging.ERROR)
 
 # CORS 설정
 app.add_middleware(
@@ -28,6 +29,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+
 
 # 로그 미들웨어
 @app.middleware("http")
@@ -39,11 +42,14 @@ async def log_requests(request: Request, call_next):
     else:
         client_ip = request.headers.get("x-real-ip") or request.client.host
     
-    print(f"Middleware hit: Client IP is {client_ip}")  # Print for direct stdout confirmation
-    logging.info(f"Client IP: {client_ip}")
+    logger.info(f"Middleware hit: Client IP is {client_ip}")
     
     response = await call_next(request)
     return response
+
+from custom_log import LoggerSetup
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 # 기본 경로
 @app.get("/")
@@ -54,7 +60,7 @@ async def main():
 @app.get("/log")
 async def proxy_log(request: Request):
     ip = request.headers.get("x-forwarded-for")
-    logging.info(f"IP: {ip}")
+    logger.info(f"IP: {ip}")
     
     return ip
 
@@ -63,6 +69,7 @@ app.include_router(verify_router)
 app.include_router(api_key_manage)
 app.include_router(ostools_api)
 app.include_router(register_router)
+app.include_router(login_router)
 
 # 서버 실행
 if __name__ == "__main__":

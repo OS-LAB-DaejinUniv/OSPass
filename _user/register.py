@@ -4,12 +4,15 @@ from schemes import JoinUser
 from fastapi import HTTPException, status, APIRouter, Depends
 from passlib.context import CryptContext
 from conn_postgre import get_db
-import logging
+from custom_log import LoggerSetup
 
 register_router = APIRouter(prefix="/api")
 
 # bcrypt context 초기화
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 # 회원가입(Register USER)
 def register_user(new_user : JoinUser, db : Session):
@@ -26,18 +29,19 @@ def register_user(new_user : JoinUser, db : Session):
         newbie = Users(
             user_id = new_user.user_id,
             user_password = hashed_password,
+            user_name = new_user.user_name,
             phone_num = new_user.phone_num,
             stud_num = new_user.stud_num,
             birth_date = new_user.birth_date
         )
-        logging.info(f"New User: {newbie}")
+        logger.info(f"New User: {newbie}")
         db.add(newbie)
         db.commit()
         db.refresh(newbie)
         
         return newbie
     except Exception as e:
-        logging.error(f"Error while Creating User: {e}")
+        logger.error(f"Error while Creating User: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error: {e}")
     
 def verify_password(plain_password : str, hashed_password : str) -> bool:

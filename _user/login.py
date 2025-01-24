@@ -1,24 +1,47 @@
 # User Login API
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from schemes import JoinUser, LoginForm
 from models import Users
 from conn_postgre import get_db
-from register import verify_password
+from .register import verify_password
 from ostools.token_handler import Token_Handler
+from database import redis_config
+import datetime
 
 login_router = APIRouter(prefix="/api")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+# Redis Connection
+rd = redis_config()
+
 # Token Handler Instance
 token_handler = Token_Handler()
 
-# User 존재 여부 확인
+# User 존재(가입) 여부 확인
 def get_user_by_id(db : Session, user_id : str):
     return db.query(Users).filter(Users.user_id == user_id).first()
+
+# User
+
+# Token Validation Verifying
+# When to Use: 인증이 필요한 경우 사용 -> 토큰의 존재 여부를 판단 
+def verify_token(token:str):
+    try:
+        # Redis 블랙리스트에서 Token 조회
+        if rd.get(token):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Token is blacklisted")
+        # Token 디코딩 및 검증
+        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
+                             algorithms=token_handler[token_handler.ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid Token")
 
 # DevPortal 로그인 API
 @login_router.post("/v1/id-login")
@@ -51,7 +74,7 @@ def login(response : Response, login_form : LoginForm = Depends(), db : Session 
         "message" : "Login Success"
     }
 
-@login_router.post("/v1/refresh-token")
+@login_router.post("/v1/id-refresh-token")
 def refresh_token(refresh_token : str):
     # Exception Handling (예외 처리)
     credentials_exception = HTTPException(
@@ -60,6 +83,11 @@ def refresh_token(refresh_token : str):
         headers={"WWW-Authenticate" : "Bearer"}
     )
     try:
+        # refresh token 유효성 검증(블랙리스트 포함 여부)
+        if rd.get(refresh_token):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Refresh Token is Blacklisted")
+            
         payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         user_id  : str = payload.get("sub")
@@ -76,3 +104,37 @@ def refresh_token(refresh_token : str):
         "token_type" : "bearer",
         "message" : "Access Token refreshed successfully"
     }
+
+@login_router.post("/v1/id-logout")
+def logout(response : Response, token : str = Depends(oauth2_scheme)):
+    '''
+    OS Dev Portal에서 로그아웃 시 사용되는 API
+    Redis에서 token을 블랙리스트로 관리하는 방식으로 처리
+    token : access token을 Header에 담아 보내면 Logout 처리 
+    '''
+    try:
+        print(f"Extracted Token {token}")
+        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY,
+                             algorithms=[token_handler.ALGORITHM])
+        # Expire Time (만료 시간)
+        exp = payload.get("exp")
+        print(f"Expire Time(만료시간):{exp}")
+        if exp is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                                detail="Invalid Token")
+        
+        # Redis에 토큰 저장(key: f"blacklist{token}", value: "blacklisted", expire_time: 만료 시간)
+        now = int(datetime.datetime.now().timestamp())
+        ttl = min(exp - now, 7 * 24 * 60 * 60) # 7일로 설정
+        if ttl > 0:
+            rd.set(f"blacklist:{token}", "blacklisted")
+            rd.expire(f"blacklist{token}",ttl)
+             
+    # Cookie 삭제(Token 삭제)
+        response.delete_cookie(key="access_token")
+        return {"status" : status.HTTP_200_OK, "message" : "Logout Success"}
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail="Invalid Token")
+    
+

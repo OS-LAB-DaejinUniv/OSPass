@@ -18,6 +18,7 @@ class User(BaseModel):
 class JoinUser(BaseModel):
     user_id : str
     user_password : str
+    user_name : str
     phone_num : str
     stud_num : str
     birth_date : str

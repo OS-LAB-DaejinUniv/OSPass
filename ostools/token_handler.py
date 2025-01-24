@@ -9,10 +9,10 @@ class Token_Handler:
     def __init__(self):
         self.ACCESS_SECRET_KEY = os.getenv("APP_ACCESS_SECRET_KEY")
         self.ALGORITHM = os.getenv("APP_ALGORITHM")
-        self.ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("APP_ACCESS_TOKEN_EXPIRE_MINUTES")
+        self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("APP_ACCESS_TOKEN_EXPIRE_MINUTES"))
         self.REFRESH_SECRET_KEY = os.getenv("APP_REFRESH_SECRET_KEY")
-        self.REFRESH_TOKEN_EXPIRE_DAYS = os.getenv("APP_REFRESH_TOKEN_EXPIRE_DAYS") 
-    
+        self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("APP_REFRESH_TOKEN_EXPIRE_DAYS")) 
+        
     def create_access_token(self, data:dict, expire_delta : datetime.timedelta = None):
         
         to_encode = data.copy()

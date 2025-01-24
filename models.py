@@ -20,6 +20,7 @@ class Users(Base):
     
     user_id = Column(String, primary_key=True, index=True)
     user_password = Column(String, nullable=False)
+    user_name = Column(String, nullable=False)
     phone_num = Column(String, nullable=False, unique=True)
     birth_date = Column(Date, nullable=False)
     stud_num = Column(String, nullable=False, unique=True)
