@@ -1,5 +1,7 @@
 # Logging Custom 
 import logging
+import time
+from datetime import datetime, timezone, timedelta
 
 class LoggerSetup:
     '''
@@ -29,6 +31,13 @@ class LoggerSetup:
         # Set up logger with the custom formatter
         log_format = "%(asctime)s [%(levelname)s]: %(message)s"
         date_format = "%Y-%m-%d %H:%M:%S"
+        # UTC -> KST
+        def custom_time(*args):
+            kst = timezone(timedelta(hours=9)) 
+            return datetime.now(tz=kst).timetuple()
+        
+        logging.Formatter.converter = custom_time
+        
         handler = logging.StreamHandler()
         handler.setFormatter(self.CustomFormatter(fmt=log_format, datefmt=date_format))
 

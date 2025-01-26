@@ -4,6 +4,7 @@ from fastapi import HTTPException, Form
 from pydantic import BaseModel, field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 from typing import Optional
+from datetime import date
 
 # Data Validation from PostgreSQL OsMember Table
 class User(BaseModel):
@@ -21,7 +22,7 @@ class JoinUser(BaseModel):
     user_name : str
     phone_num : str
     stud_num : str
-    birth_date : str
+    birth_date : date
     user_uuid : Optional[str] = None
     
     class Config:

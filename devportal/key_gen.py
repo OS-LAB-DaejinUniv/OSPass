@@ -15,8 +15,7 @@ logger = logger_setup.logger
 
 # OSPASS API KEY Gen
 # Token 확보 판단 후 발급
-def gen_api_key(token : str = Depends(oauth2_scheme), 
-                      db : Session = Depends(get_db)):
+def gen_api_key(db : Session, token : str = Depends(oauth2_scheme)):
     '''
     - Devportal을 통해서 API KEY를 발급받을 것
     - API KEY 발급 ==> Login한 유저(인증된 유저)만 발급 가능

@@ -11,8 +11,6 @@ from ostools.token_handler import Token_Handler
 from database import redis_config
 import datetime
 
-login_router = APIRouter(prefix="/api")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Redis Connection
@@ -41,10 +39,8 @@ def verify_token(token:str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid Token")
 
-# DevPortal 로그인 API
-@login_router.post("/v1/id-login")
-def login(response : Response, login_form : LoginForm = Depends(), db : Session = Depends(get_db)):
-    print(f"Login Form : {login_form}")
+# Devportal Login Function
+def process_login(response : Response, db : Session, login_form : LoginForm=Depends()):
     
     user = get_user_by_id(db, login_form.user_id)
     # ID 검증
@@ -72,8 +68,7 @@ def login(response : Response, login_form : LoginForm = Depends(), db : Session 
         "message" : "Login Success"
     }
 
-@login_router.post("/v1/id-refresh-token")
-def refresh_token(refresh_token : str):
+def issued_refresh_token(refresh_token : str):
     # Exception Handling (예외 처리)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,9 +98,9 @@ def refresh_token(refresh_token : str):
         "message" : "Access Token refreshed successfully"
     }
     
-# Current User Info API
-@login_router.get("/v1/current-user") 
-def get_current_user(token: str=Depends(oauth2_scheme)):
+# Current User Info 
+# user_id, user_name 조회
+def current_user_info(token: str=Depends(oauth2_scheme)):
     '''
     로그인한 현재 사용자 정보(id,name 조회 가능)
     '''
@@ -128,8 +123,7 @@ def get_current_user(token: str=Depends(oauth2_scheme)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid Token")
 
-@login_router.post("/v1/id-logout")
-def logout(response : Response, token : str = Depends(oauth2_scheme)):
+def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
     '''
     OS Dev Portal에서 로그아웃 시 사용되는 API
     Redis에서 token을 블랙리스트로 관리하는 방식으로 처리

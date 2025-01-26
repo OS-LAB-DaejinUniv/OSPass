@@ -1,26 +1,20 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, Request
+from fastapi.security import HTTPBasic
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.openapi.utils import get_openapi
-from typing import Annotated
 import uvicorn
 import logging
-import secrets
-
 from auth import verify_router
 from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
 from devportal.register import register_router
-from devportal.login import login_router
 from devportal.devportal_api import devportal_router
 
 app = FastAPI()
 
 security = HTTPBasic()
 
-logging.basicConfig(level=logging.INFO & logging.DEBUG & logging.ERROR)
+logging.basicConfig(level=logging.INFO)
 
 # CORS 설정
 app.add_middleware(
@@ -70,7 +64,6 @@ app.include_router(verify_router)
 app.include_router(api_key_manage)
 app.include_router(ostools_api)
 app.include_router(register_router)
-app.include_router(login_router)
 app.include_router(devportal_router)
 
 # 서버 실행

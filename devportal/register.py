@@ -47,6 +47,5 @@ def register_user(new_user : JoinUser, db : Session):
 def verify_password(plain_password : str, hashed_password : str) -> bool:
     return bcrypt_context.verify(plain_password, hashed_password)
 
-@register_router.post("/v1/register",  response_model=JoinUser)
-def register(new_user : JoinUser, db : Session = Depends(get_db)):
+def register(new_user : JoinUser, db : Session):
     return register_user(new_user, db)

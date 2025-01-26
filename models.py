@@ -11,9 +11,6 @@ class OsMember(Base):
     uuid = Column(String, primary_key = True, index=True)
     name = Column(String, index = True)
     position = Column(Integer,index=True)
-    
-    # OsMember와 APIKeyLog 테이블 간 관계 설정
-    apikey = relationship("API_Key", back_populates="user")
 
 class Users(Base):
     __tablename__ = "users"
@@ -27,12 +24,15 @@ class Users(Base):
     signup_date = Column(TIMESTAMP, server_default=func.now())
     user_uuid = Column(String, nullable=True, unique=True)
     
+    # OsMember와 APIKeyLog 테이블 간 관계 설정
+    apikey = relationship("API_Key", back_populates="user")
+    
 class API_Key(Base):
     __tablename__ = "apikey"
     
     idx = Column(Integer, primary_key=True, index=True)
     apikey = Column(String, nullable=False, unique=True)
     user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
-    timestamp = Column(TIMESTAMP) # key 생성 시간 
+    timestamp = Column(TIMESTAMP, server_default=func.now()) # key 생성 시간 
     
     user = relationship("Users", back_populates="apikey")

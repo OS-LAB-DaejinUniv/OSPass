@@ -10,7 +10,7 @@ from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from challenge import gen_challenge
 from schemes import User, Card_Data, SessionKey
-from models import OsMember, APIKeyLog
+from models import OsMember, API_Key
 from conn_postgre import get_db
 # from ostools.qrcode import generate_qr # QR Code 생성 Function
 import database
@@ -120,7 +120,7 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
         if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Unauthorized User")
         # My-API KEY
-        user_api_key = db.query(APIKeyLog).filter(APIKeyLog.key == API_KEY).first() # 생성된 API KEY SELECT 
+        user_api_key = db.query(API_Key).filter(API_Key.apikey == API_KEY).first() # 생성된 API KEY SELECT 
         if not user_api_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
         
