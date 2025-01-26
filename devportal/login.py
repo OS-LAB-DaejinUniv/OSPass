@@ -25,8 +25,6 @@ token_handler = Token_Handler()
 def get_user_by_id(db : Session, user_id : str):
     return db.query(Users).filter(Users.user_id == user_id).first()
 
-# User
-
 # Token Validation Verifying
 # When to Use: 인증이 필요한 경우 사용 -> 토큰의 존재 여부를 판단 
 def verify_token(token:str):
@@ -37,7 +35,7 @@ def verify_token(token:str):
                                 detail="Token is blacklisted")
         # Token 디코딩 및 검증
         payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
-                             algorithms=token_handler[token_handler.ALGORITHM])
+                             algorithms=[token_handler.ALGORITHM])
         return payload
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -60,7 +58,7 @@ def login(response : Response, login_form : LoginForm = Depends(), db : Session 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="Invalid User ID or Password")
     # access token 생성
-    access_token = token_handler.create_access_token(data={"sub" : user.user_id})
+    access_token = token_handler.create_access_token(data={"sub" : user.user_id, "name" : user.user_name})
     # refresh token 생성
     refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id})
     
@@ -104,6 +102,31 @@ def refresh_token(refresh_token : str):
         "token_type" : "bearer",
         "message" : "Access Token refreshed successfully"
     }
+    
+# Current User Info API
+@login_router.get("/v1/current-user") 
+def get_current_user(token: str=Depends(oauth2_scheme)):
+    '''
+    로그인한 현재 사용자 정보(id,name 조회 가능)
+    '''
+    try:
+        # Token Decoding
+        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
+                             algorithms=[token_handler.ALGORITHM])
+        user_id = payload.get("sub")
+        user_name = payload.get("name")
+        
+        if not user_id or not user_name:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid token payload")
+        return {
+            "status" : status.HTTP_200_OK,
+            "user_id" : user_id,
+            "user_name" : user_name
+        }
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid Token")
 
 @login_router.post("/v1/id-logout")
 def logout(response : Response, token : str = Depends(oauth2_scheme)):

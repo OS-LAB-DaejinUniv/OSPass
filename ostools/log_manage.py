@@ -2,7 +2,7 @@
 from fastapi import HTTPException, status, APIRouter, Depends
 import logging
 import random
-from models import OsMember, APIKeyLog, Users
+from models import OsMember, Users
 from conn_postgre import get_db
 from sqlalchemy.orm import Session
 from .token_handler import Token_Handler
@@ -64,20 +64,4 @@ def refresh_token(refresh_token : str):
         "token_type" : "bearer",
         "message" : "Access Token refreshed successfully"
     }
-   
-# 로그인 된 사용자가 API KEY 발급 시 호출
-# API KEY 생성하기
-# api key 생성, 해당 uuid와 api key 매핑 후 Insert to Apikeylog table
-# 매개변수 => uuid : JWT에 적혀있는 sub : user_uuid 
-@api_key_manage.get("/v1/api-key")
-def gen_api_key(uuid : str, db:Session=Depends(get_db)):
-    try:
-        if login().get("access_token"): # access token이 존재하면
-            new_api_key = APIKeyLog(key=hex(random.getrandbits(128)), user_uuid=uuid) # mapping
-            db.add(new_api_key) # generated api key & user's uuid insert to APIKeyLog Table
-            db.commit()
-            return {"status" : status.HTTP_200_OK, "api-key" : {new_api_key}}
-    except Exception as e:
-        logging.error(f"Error generating API KEY : {e}")
-        return {"status" : status.HTTP_401_UNAUTHORIZED, "detail" : "Unauthorized"}
 

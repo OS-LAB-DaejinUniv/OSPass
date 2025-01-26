@@ -13,7 +13,7 @@ class OsMember(Base):
     position = Column(Integer,index=True)
     
     # OsMember와 APIKeyLog 테이블 간 관계 설정
-    apikey_logs = relationship("APIKeyLog", back_populates="os_member")
+    apikey = relationship("API_Key", back_populates="user")
 
 class Users(Base):
     __tablename__ = "users"
@@ -27,14 +27,12 @@ class Users(Base):
     signup_date = Column(TIMESTAMP, server_default=func.now())
     user_uuid = Column(String, nullable=True, unique=True)
     
-# created
-class APIKeyLog(Base):
-    __tablename__ = "apikeylog"
+class API_Key(Base):
+    __tablename__ = "apikey"
     
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String, unique=True)
-    uuid = Column(String, ForeignKey('osmember.uuid'))
-    timestamp = Column(TIMESTAMP) # key 생성 시간
-    source = Column(String) # Api key 사용 출처 
+    idx = Column(Integer, primary_key=True, index=True)
+    apikey = Column(String, nullable=False, unique=True)
+    user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
+    timestamp = Column(TIMESTAMP) # key 생성 시간 
     
-    os_member = relationship("OsMember", back_populates="apikey_logs")
+    user = relationship("Users", back_populates="apikey")

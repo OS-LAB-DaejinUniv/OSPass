@@ -34,7 +34,7 @@ def register_user(new_user : JoinUser, db : Session):
             stud_num = new_user.stud_num,
             birth_date = new_user.birth_date
         )
-        logger.info(f"New User: {newbie}")
+        logger.info(f"New User: {newbie.user_id, newbie.user_name}")
         db.add(newbie)
         db.commit()
         db.refresh(newbie)
@@ -47,6 +47,6 @@ def register_user(new_user : JoinUser, db : Session):
 def verify_password(plain_password : str, hashed_password : str) -> bool:
     return bcrypt_context.verify(plain_password, hashed_password)
 
-@register_router.post("/v1/register")
+@register_router.post("/v1/register",  response_model=JoinUser)
 def register(new_user : JoinUser, db : Session = Depends(get_db)):
     return register_user(new_user, db)

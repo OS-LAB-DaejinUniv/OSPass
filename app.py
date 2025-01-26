@@ -12,8 +12,9 @@ import secrets
 from auth import verify_router
 from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
-from _user.register import register_router
-from _user.login import login_router
+from devportal.register import register_router
+from devportal.login import login_router
+from devportal.devportal_api import devportal_router
 
 app = FastAPI()
 
@@ -70,6 +71,7 @@ app.include_router(api_key_manage)
 app.include_router(ostools_api)
 app.include_router(register_router)
 app.include_router(login_router)
+app.include_router(devportal_router)
 
 # 서버 실행
 if __name__ == "__main__":
