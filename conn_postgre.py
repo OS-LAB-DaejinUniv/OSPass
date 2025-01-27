@@ -4,17 +4,21 @@ from sqlalchemy import create_engine, exc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from custom_log import LoggerSetup
 
 load_dotenv()
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 DATABASE_URL = os.getenv("POSTGRESQL_URL")
 logging.info(f"DataBaseUrl: {DATABASE_URL}")
 # SQLAlchemy engine 생성
 try:
     engine = create_engine(DATABASE_URL)
-    logging.info(f"POSTGRESQL CONNECTED SUCCESSFULLY")
+    logger.info(f"POSTGRESQL CONNECTED SUCCESSFULLY")
 except exc.SQLAlchemyError as e:
-    logging.error(f"Error creating engine: {e}")
+    logger.error(f"Error creating engine: {e}")
 
 # SessionLocal 클래스 생성
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -27,7 +31,7 @@ def get_db():
     try:
         yield db
     except exc.SQLAlchemyError as e:
-        logging.error(f"Database session error: {e}")
+        logger.error(f"Database session error: {e}")
         
     finally:
         db.close()

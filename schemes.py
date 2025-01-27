@@ -82,7 +82,7 @@ class SessionKey(BaseModel):
     
 # Token Scheme
 class Token(BaseModel):
-    access_token: str
+    access_token: dict
     token_type: str
 
 # JWT에 담고있을 사용자 정보 스키마

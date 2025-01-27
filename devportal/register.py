@@ -1,12 +1,9 @@
 from sqlalchemy.orm import Session
 from models import Users
 from schemes import JoinUser
-from fastapi import HTTPException, status, APIRouter, Depends
+from fastapi import HTTPException, status
 from passlib.context import CryptContext
-from conn_postgre import get_db
 from custom_log import LoggerSetup
-
-register_router = APIRouter(prefix="/api")
 
 # bcrypt context 초기화
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

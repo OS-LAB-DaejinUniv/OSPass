@@ -4,11 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import uvicorn
 import logging
-from auth import verify_router
 from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
-from devportal.register import register_router
 from devportal.devportal_api import devportal_router
+from ospass.ospass_api import ospass_router
 
 app = FastAPI()
 
@@ -24,8 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-
 
 # 로그 미들웨어
 @app.middleware("http")
@@ -60,11 +57,11 @@ async def proxy_log(request: Request):
     return ip
 
 # 라우터 포함
-app.include_router(verify_router)
 app.include_router(api_key_manage)
+app.include_router(ospass_router)
 app.include_router(ostools_api)
-app.include_router(register_router)
 app.include_router(devportal_router)
+
 
 # 서버 실행
 if __name__ == "__main__":

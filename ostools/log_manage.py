@@ -18,7 +18,7 @@ token = Token_Handler() # JWT 관련 클래스 객체 생성
 # OStools App에서 최초 로그인 시 사용
 # JWT 방식 -> Remember Me(자동 로그인:세션유지)
  
-@api_key_manage.post("/v1/login", description="APP CARD LOGIN")
+@api_key_manage.post("/v1/app-login", description="APP CARD LOGIN")
 def login(data : str, db : Session = Depends(get_db)):
     decrypted = decrypt_pp(data)
     decrypted_uuid = decrypted.get("card_uuid") # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
@@ -41,7 +41,7 @@ def login(data : str, db : Session = Depends(get_db)):
     
 # OStools APP에서 로그인 후 상태 유지 리프레시 토큰 발급 API
 # refresh token : login api에서 응답으로 오는 refresh token
-@api_key_manage.post("/v1/refresh-token")
+@api_key_manage.post("/v1/app-refresh-token")
 def refresh_token(refresh_token : str):
     # 예외 처리
     credentials_exception = HTTPException(

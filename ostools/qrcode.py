@@ -5,7 +5,7 @@ import io
 import qrcode
 import base64
 
-from auth import get_or_issue_challenge
+from ospass.services.auth import get_or_issue_challenge
 
 ostools_api = APIRouter(prefix="/api")
 

@@ -1,11 +1,10 @@
 # User Login API
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from schemes import JoinUser, LoginForm
+from schemes import LoginForm
 from models import Users
-from conn_postgre import get_db
 from .register import verify_password
 from ostools.token_handler import Token_Handler
 from database import redis_config

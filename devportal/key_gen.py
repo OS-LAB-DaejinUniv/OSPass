@@ -30,7 +30,7 @@ def gen_api_key(db : Session, token : str = Depends(oauth2_scheme)):
         if not auth_user_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="user_id not matched")
-        new_api_key = API_Key(apikey=hex(random.getrandbits(128)), user_id=user_id)
+        new_api_key = API_Key(apikey=hex(random.getrandbits(128))[2:], user_id=user_id)
         db.add(new_api_key)
         db.commit()
         logger.info({"status": status.HTTP_201_CREATED, 
