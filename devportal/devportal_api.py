@@ -13,7 +13,7 @@ devportal_router = APIRouter(prefix="/api")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Devportal Register API
-@devportal_router.post("v1/register")
+@devportal_router.post("/v1/register")
 def register(new_user:JoinUser, db:Session=Depends(get_db)):
     '''
     - Devportal 회원가입 Endpoint
@@ -23,7 +23,7 @@ def register(new_user:JoinUser, db:Session=Depends(get_db)):
             "message" : "User registration successful"}
 
 # Devportal Login API
-@devportal_router.post("v1/id-login")
+@devportal_router.post("/v1/id-login")
 def login(response : Response, db: Session=Depends(get_db), login_form: LoginForm = Depends()):
     '''
     - Devportal 로그인 Endpoint
@@ -31,7 +31,7 @@ def login(response : Response, db: Session=Depends(get_db), login_form: LoginFor
     return process_login(response, db, login_form)
 
 # Refresh Token 발급 API
-@devportal_router.post("v1/id-refresh-token")
+@devportal_router.post("/v1/id-refresh-token")
 def refresh_token(refresh_token:str):
     '''
     - Refresh Token 발급 Endpoint
@@ -39,7 +39,7 @@ def refresh_token(refresh_token:str):
     return issued_refresh_token(refresh_token)
 
 # Currnet User Information API
-@devportal_router.get("v1/current-user")
+@devportal_router.get("/v1/current-user")
 def get_current_user(token: str = Depends(oauth2_scheme)):
     '''
     - Devportal Current User Information Endpoint
@@ -48,7 +48,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     return current_user_info(token)
 
 # Devportal Logout API
-@devportal_router.post("v1/id-logout")
+@devportal_router.post("/v1/id-logout")
 def logout(response: Response, token: str = Depends(oauth2_scheme)):
     '''
     - Devportal Logout Endpoint

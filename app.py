@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.security import HTTPBasic
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import iterate_in_threadpool
 
 import uvicorn
 import logging
@@ -8,6 +9,7 @@ from ostools.log_manage import api_key_manage
 from ostools.qrcode import ostools_api
 from devportal.devportal_api import devportal_router
 from ospass.ospass_api import ospass_router
+from custom_log import LoggerSetup
 
 app = FastAPI()
 
@@ -15,18 +17,26 @@ security = HTTPBasic()
 
 logging.basicConfig(level=logging.INFO)
 
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
+
+origins = [
+    "*",
+    "http://devportal.oslab",
+]
+
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-# 로그 미들웨어
+# Request Log Middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def request_log(request: Request, call_next):
     client_ip = request.headers.get("x-forwarded-for")
     
     if client_ip:
@@ -39,9 +49,18 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
 
-from custom_log import LoggerSetup
-logger_setup = LoggerSetup()
-logger = logger_setup.logger
+# Response Log Middleware
+@app.middleware("http")
+async def response_log(request: Request, call_next):
+    response = await call_next(request)
+    logger.info(f"Response: {response.status_code}")
+    
+    response_body = [chunk async for chunk in response.body_iterator]
+    response.body_iterator = iterate_in_threadpool(iter(response_body))
+    
+    logger.info(f"Reponse Body: {response_body[0].decode()}")
+    
+    return response
 
 # 기본 경로
 @app.get("/")

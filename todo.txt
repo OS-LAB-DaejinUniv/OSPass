@@ -6,3 +6,8 @@
 -> Push Server는 따로 둘 예정
 
 3. 
+- 서비스 등록을 하면 apikey를 발급해줌
+- apikey 발급과 client_id 생성
+- redirect_uri(서비스 도메인 등록) -> apikey, client_id 검증 후 등록
+- json
+-> 서비스 등록 & api key & client_id ==> json 컬럼에 데이터 insert

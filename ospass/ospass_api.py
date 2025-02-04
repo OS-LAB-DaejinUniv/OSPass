@@ -75,7 +75,8 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
         rd.set(s_id,authorization_code)
         
         # 리다이렉션 URL에 인가 코드를 포함하여 반환
-        redirect_url = f"{redirect_uri}?code={authorization_code}" # redirect_url 
+        # 프래그먼트 사용
+        redirect_url = f"{redirect_uri}#code={authorization_code}" # redirect_url 
         response.status_code = status.HTTP_302_FOUND
         response.headers["Location"] = redirect_url
         return {"message" : "Redirecting with authorization code"}       
