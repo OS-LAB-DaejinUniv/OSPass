@@ -9,7 +9,10 @@ from models import API_Key
 import string
 import random
 from const import LENGTH
+from custom_log import LoggerSetup
 
+logger_setup = LoggerSetup()
+logger = logger_setup.logger 
 
 def gen_client_id(client_id:str, db:Session):
     # client_id number + string generator
@@ -37,6 +40,6 @@ def gen_client_id(client_id:str, db:Session):
             key.registerd_service = current_services
         
         db.commit()
-        
+    logger.debug(f'Generated Client_ID:{client_id}')
     print(f'Generated Client_ID:{client_id}')
     return client_id

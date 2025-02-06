@@ -7,6 +7,7 @@ from schemes import JoinUser, LoginForm
 from .key_gen import gen_api_key
 from .register import register_user
 from .login import process_login, issued_refresh_token, current_user_info, process_logout
+from .service_name import process_register_service
 
 devportal_router = APIRouter(prefix="/api")
 
@@ -56,12 +57,22 @@ def logout(response: Response, token: str = Depends(oauth2_scheme)):
     '''
     return process_logout(response, token)
     
-# Devportal에서 API KEY를 발급받을 수 있는 API
-@devportal_router.post("/v1/apikey")
-def get_apikey(token: str=Depends(oauth2_scheme), db: Session=Depends(get_db)):
+# # Devportal에서 API KEY를 발급받을 수 있는 API
+# @devportal_router.post("/v1/apikey")
+# def get_apikey(token: str=Depends(oauth2_scheme), db: Session=Depends(get_db)):
+#     '''
+#     - API KEY 발급 Endpoint
+#     '''
+#     gen_api_key(db, token)
+#     return {"status" : status.HTTP_201_CREATED,
+#             "message": "API KEY CREATED SUCCESSFULLY"}
+
+# Devportal에서 User의 Service 등록 API    
+@devportal_router.post("/v1/register-service")
+def register_service(register_service_name:str, db:Session=Depends(get_db), current_user=Depends(current_user_info)):
     '''
-    - API KEY 발급 Endpoint
+    - Service Name 등록 Endpoint
     '''
-    gen_api_key(db, token)
-    return {"status" : status.HTTP_201_CREATED,
-            "message": "API KEY CREATED SUCCESSFULLY"}
+    result = process_register_service(register_service_name,db,current_user)
+    return result
+    
