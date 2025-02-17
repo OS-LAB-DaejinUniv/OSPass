@@ -7,7 +7,7 @@ rd = redis_config()
 
 # challenge 생성
 # 생성된 challenge와 카드에 담겨져 있는 response랑 비교
-# key는 어떤 것으로 할지 의논 중
+# key : client_id
 def gen_challenge():
     if rd is None:
         logging.error(msg="redis connection fail")

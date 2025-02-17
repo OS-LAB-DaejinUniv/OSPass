@@ -21,7 +21,7 @@ except exc.SQLAlchemyError as e:
     logger.error(f"Error creating engine: {e}")
 
 # SessionLocal 클래스 생성
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=True, bind=engine)
 
 Base = declarative_base()
 
@@ -29,9 +29,11 @@ Base = declarative_base()
 def get_db():
     db = SessionLocal()
     try:
-        yield db
+        yield db # 요청 처리 중에는 세션 유지
+        db.commit() # 요청이 성공적으로 끝나면 commit 실행
     except exc.SQLAlchemyError as e:
+        db.rollback() # 예외 발생 시 롤백
         logger.error(f"Database session error: {e}")
-        
+        raise
     finally:
         db.close()

@@ -51,6 +51,7 @@ def process_register_service(register_service_name:str, db:Session,
     if existing_api_key:
         # 기존 데이터 업데이트
         registered_services = existing_api_key.registered_service or {}
+        
         registered_services[client_id] = {
             "service_name":register_service_name,
             "apikey":api_key,
@@ -62,8 +63,7 @@ def process_register_service(register_service_name:str, db:Session,
         # 새 데이터 생성
         new_service = API_Key(
             user_id=user_id,
-            apikey=api_key,
-            register_service={
+            registered_service={
                 client_id:{
                     "service_name":register_service_name,
                     "apikey": api_key,

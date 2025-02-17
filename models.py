@@ -32,9 +32,8 @@ class API_Key(Base):
     __tablename__ = "apikey"
     
     idx = Column(Integer, primary_key=True, index=True)
-    apikey = Column(String, nullable=False, unique=True)
     user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
     timestamp = Column(TIMESTAMP, server_default=func.now()) # key 생성 시간 
-    registerd_service = Column(JSONB, nullable=True)
+    registered_service = Column(JSONB, nullable=True)
     
     user = relationship("Users", back_populates="apikey")

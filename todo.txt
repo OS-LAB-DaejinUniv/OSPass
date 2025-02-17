@@ -1,13 +1,18 @@
 --- 
-1. API KEY 관리 테이블 다시
+1. API KEY 관리 테이블 다시 ok
 
 2. 
 -> api가 호출되고 (DB 논의 중) 검증되면 서버가 앱한테 푸시 알림 띄우라고 해야함(NFC로 인증합시다)
 -> Push Server는 따로 둘 예정
 
 3. 
-- 서비스 등록을 하면 apikey를 발급해줌
-- apikey 발급과 client_id 생성
-- redirect_uri(서비스 도메인 등록) -> apikey, client_id 검증 후 등록
-- json
--> 서비스 등록 & api key & client_id ==> json 컬럼에 데이터 insert
+- 서비스 등록을 하면 apikey를 발급해줌 ok
+- apikey 발급과 client_id 생성 ok 
+- redirect_uri(서비스 도메인 등록) -> apikey, client_id 검증 후 등록 (해야함) 
+- json(ok)
+-> 서비스 등록 & api key & client_id ==> json 컬럼에 데이터 insert ok
+- redirect_uri 등록 api 작성하기 (해야함)
+
+4. 아이디, 비밀번호 찾기 api 작성하기(해야함)
+
+- 파일구조 다시 

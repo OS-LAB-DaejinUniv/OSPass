@@ -49,18 +49,18 @@ async def request_log(request: Request, call_next):
     response = await call_next(request)
     return response
 
-# Response Log Middleware
-@app.middleware("http")
-async def response_log(request: Request, call_next):
-    response = await call_next(request)
-    logger.info(f"Response: {response.status_code}")
+# # Response Log Middleware
+# @app.middleware("http")
+# async def response_log(request: Request, call_next):
+#     response = await call_next(request)
+#     logger.info(f"Response: {response.status_code}")
     
-    response_body = [chunk async for chunk in response.body_iterator]
-    response.body_iterator = iterate_in_threadpool(iter(response_body))
+#     response_body = [chunk async for chunk in response.body_iterator]
+#     response.body_iterator = iterate_in_threadpool(iter(response_body))
     
-    logger.info(f"Reponse Body: {response_body[0].decode()}")
+#     logger.info(f"Reponse Body: {response_body[0].decode()}")
     
-    return response
+#     return response
 
 # 기본 경로
 @app.get("/")
