@@ -11,8 +11,8 @@ from models import OsMember, API_Key
 from conn_postgre import get_db
 from database import redis_config
 from custom_log import LoggerSetup
-from .services.auth import process_verify_card_response, issue_access_token
-from .services.token import Oauth_Token
+from .service.auth import process_verify_card_response, issue_access_token
+from .service.token import Oauth_Token
 
 ospass_router = APIRouter(prefix="/api")
 
