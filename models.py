@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import TIMESTAMP, Date
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import func # func.now() == 현재 시간
 from conn_postgre import Base
 
@@ -34,6 +35,7 @@ class API_Key(Base):
     idx = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
     timestamp = Column(TIMESTAMP, server_default=func.now()) # key 생성 시간 
-    registered_service = Column(JSONB, nullable=True)
+    # SQLAlchmey에서 JSON 타입 컬럼은 Immutable 함 -> MutableDict로 변경
+    registered_service = Column(MutableDict.as_mutable(JSONB), nullable=True)
     
     user = relationship("Users", back_populates="apikey")
