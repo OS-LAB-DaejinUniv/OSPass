@@ -11,8 +11,31 @@
 - redirect_uri(서비스 도메인 등록) -> apikey, client_id 검증 후 등록 (해야함) 
 - json(ok)
 -> 서비스 등록 & api key & client_id ==> json 컬럼에 데이터 insert ok
-- redirect_uri 등록 api 작성하기 (해야함)
+- redirect_uri 등록 api 작성하기 (ok)
 
 4. 아이디, 비밀번호 찾기 api 작성하기(해야함)
+
+5. challenge 키 값으로 어떤 거 쓸거냐면 client_id 사용 예정임 그럴라면 불러와야 함
+Flow
+1. A라는 User가 Devportal에 회원이 된다
+2. A가 로그인을 한다.
+3. A는 Service Name(서비스 등록)을 등록한다.
+4. 3번의 과정 중에서 등록을 하면 자신의 Serivce에 고유한 API KEY, client_id가 생성된다.
+5. 이제 A는 OSPASS API를 사용할 수 있다.
+6. 사용해서 만든 클라이언트 서비스가 생김
+7. 이 서비스를 사용해보자
+8. 서비스에서 OSPASS로 로그인하기를 B라는 사용자 사용
+9. QRCODE가 띄워짐 -> key : value 형식의 데이터와 딥링크?(앱링크)가 담겨져있다.
+                   -> key : 미정, value : challenge 
+                   -> challenge는 복호화되는 인증 절차를 수행
+10. QRCODE를 찍고 앱으로 이동한다
+11. 앱에서 card-response api가 호출되어 인증을 수행한다.
+12. 인증이 완료되면 사용자 B는 로그인이 된다
+13. 12번 과정에서 card-response api가 호출된 후 검증이 되면, access token(jwt)을
+사용자 B가 사용 중인 브라우저 쿠키에 저장된다.
+14. jwt 만료시간이 되면 refresh token api가 호출되어 세션을 유지한다. 
+
+
+6. 인증 과정에서 사용되는 세션 아이디 token 담지 말 것 - 수정하기
 
 - 파일구조 다시 

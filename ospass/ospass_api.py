@@ -43,15 +43,22 @@ async def verify_card_response(data : Card_Data, user_session : SessionKey,
         
         # 일치하면 Session ID 발급 후 쿠키에 저장
         s_id = str(uuid.uuid4()) # 세션 아이디 하나 생성
-        response.set_cookie(key="s_id", value=s_id, httponly=True, secure=True)
-        return {"message": "NFC Authentication Successful", "s_id" : {s_id}}
+        response.set_cookie(key="MySessionID", value=s_id, 
+                            httponly=True, secure=True)
+        
+        # Redis에 (s_id -> UUID) & (UUID -> s_id) 저장
+        rd.setex(s_id, 600, decrypted_uuid)
+        rd.setex(decrypted_uuid, 600, s_id)
+        
+        return {"message": "NFC Authentication Successful", "MySessionID" : {s_id}}
     
     except Exception as e:
         print(f"Error occurred: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 @ospass_router.get("/v1/authorization-code")
-def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Response, request : Request, db : Session = Depends(get_db)):
+def issue_authorization_code(API_KEY : str, redirect_uri : str, 
+                             response : Response, request : Request, db : Session = Depends(get_db)):
     '''
     - 인가코드 제공 API
     - API_KEY : Devportal에서 발급받은 API KEY => API 사용자(서비스 서버)는 헤더에 추가하여 Request
@@ -60,7 +67,7 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
     '''
     try:
         # My-Session ID
-        s_id = request.cookies.get("s_id")
+        s_id = request.cookies.get("MySessionID")
         if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Unauthorized User")
         # My-API KEY
@@ -69,22 +76,27 @@ def issue_authorization_code(API_KEY : str, redirect_uri : str, response : Respo
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid API KEY")
         
         # 인가 코드 생성
-        authorization_code = hex(random.getrandbits(128))[2:]
+        authorization_code = str(uuid.uuid4())
         
         # Redis INSERT -> key : value (session id : authorization code)  
-        rd.set(s_id,authorization_code)
+        # 인가 코드 TTL 설정: 600초(10분) 동안 유효
+        rd.setex(s_id, 600, authorization_code)
         
         # 리다이렉션 URL에 인가 코드를 포함하여 반환
-        # 프래그먼트 사용
-        redirect_url = f"{redirect_uri}#code={authorization_code}" # redirect_url 
+        redirect_url = f"{redirect_uri}?code={authorization_code}" # redirect_url 
         response.status_code = status.HTTP_302_FOUND
         response.headers["Location"] = redirect_url
         return {"message" : "Redirecting with authorization code"}       
-    except:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Data for authorization_code")
+    except HTTPException as e:
+        raise f'Error in issue_authorization_code: {str(e)}'
     
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                            detail="Internal Server Error")
+
 @ospass_router.get("/v1/callback")
-def ospass_login_callback(code : str, redirect_uri : str, request : Request):
+def ospass_login_callback(code : str, redirect_uri : str, 
+                          request : Request, db:Session=Depends(get_db)):
     '''
     - 발급 받은 인가 코드를 통해 access token 발급해주고 redirection 진행
     - code: 인가 코드
@@ -92,10 +104,16 @@ def ospass_login_callback(code : str, redirect_uri : str, request : Request):
     - 서비스 서버가 사용할 API
     '''
     try:
-        s_id = request.cookies.get("s_id") # cookie에서 s_id 가져옴
-        if not s_id:
+        # 요청 데이터에서 카드 정보(member uuid) 가져옴
+        card_data = request.json()
+        decrypted_member_uuid = process_verify_card_response(card_data, None, db)
+        
+        stored_s_id = request.cookies.get("MySessionID") # cookie에서 s_id 가져옴
+        if not stored_s_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="Session ID not found")
+        s_id = stored_s_id.decode()
+        
         # 인가 코드 redis에서 가져온 후 검증
         auth_code = rd.get(s_id)
         if not auth_code:
@@ -104,12 +122,14 @@ def ospass_login_callback(code : str, redirect_uri : str, request : Request):
         if auth_code.decode() != code:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid Authorization code")
+
+        # access token 발급 -> 서비스 서버를 Redirect
+        access_token = issue_access_token(decrypted_member_uuid)
+        response = RedirectResponse(url=redirect_uri)
+        response.set_cookie(key="access_token", value=access_token, 
+                            httponly=True, secure=True)
+        return response
         
-        # access token 소유 -> 서비스 서버를 Redirect
-        access_token = issue_access_token(s_id)
-        redirect_url = f"{redirect_uri}?token={access_token}"
-        return RedirectResponse(url=redirect_url)
-    
     except:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                             detail="Invalid Authorization code")
@@ -122,7 +142,7 @@ def issued_refresh_token(request:Request, response:Response):
     - 서비스 서버가 사용할 API
     '''
     try:
-        s_id = request.cookies.get("s_id")
+        s_id = request.cookies.get("MySessionID")
         
         if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,

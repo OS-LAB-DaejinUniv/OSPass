@@ -55,7 +55,7 @@ def process_login(response : Response, db : Session, login_form : LoginForm=Depe
     # access token 생성
     access_token = token_handler.create_access_token(data={"sub" : user.user_id, "name" : user.user_name})
     # refresh token 생성
-    refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id})
+    refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id, "name" : user.user_name})
     
     response.set_cookie(key="access_token", value=access_token, httponly=True)
     
@@ -68,6 +68,9 @@ def process_login(response : Response, db : Session, login_form : LoginForm=Depe
     }
 
 def issued_refresh_token(refresh_token : str):
+    '''
+    - Refresh Token 발급
+    '''
     # Exception Handling (예외 처리)
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

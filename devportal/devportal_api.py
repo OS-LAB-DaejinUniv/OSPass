@@ -57,16 +57,6 @@ def logout(response: Response, token: str = Depends(oauth2_scheme)):
     - Token Blacklist 방식
     '''
     return process_logout(response, token)
-    
-# # Devportal에서 API KEY를 발급받을 수 있는 API
-# @devportal_router.post("/v1/apikey")
-# def get_apikey(token: str=Depends(oauth2_scheme), db: Session=Depends(get_db)):
-#     '''
-#     - API KEY 발급 Endpoint
-#     '''
-#     gen_api_key(db, token)
-#     return {"status" : status.HTTP_201_CREATED,
-#             "message": "API KEY CREATED SUCCESSFULLY"}
 
 # Devportal에서 User의 Service 등록 API    
 @devportal_router.post("/v1/register-service")
@@ -77,13 +67,14 @@ def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db
     result = process_register_service(request.service_name,db,current_user)
     return result
 
+# Devportal에서 User의 Service Redirect Uri 등록 API
 @devportal_router.post("/v1/redirect-uris")
 def register_redirect_uris(data : RegisterRedirectUri,
                            current_user:dict=Depends(current_user_info), 
                            db:Session=Depends(get_db)):
     '''
     - Redirect Uri 등록 Endpoint
-    - List Type , 여러 개 등록 가능
+    - List Type[] , 여러 개 등록 가능
     - data : client_id, redirect_uri
     '''
     result = process_register_redirect_uri(data,db,current_user)
