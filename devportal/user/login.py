@@ -8,9 +8,13 @@ from models import Users
 from .register import verify_password
 from ostools.token_handler import Token_Handler
 from database import redis_config
+from custom_log import LoggerSetup
 import datetime
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 # Redis Connection
 rd = redis_config()
@@ -155,5 +159,5 @@ def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
     except JWTError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="Invalid Token")
-    
+
 

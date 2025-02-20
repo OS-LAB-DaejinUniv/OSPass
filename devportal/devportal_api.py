@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from conn_postgre import get_db
 
 from schemes import JoinUser, LoginForm
-from .register import register_user
-from .login import process_login, issued_refresh_token, current_user_info, process_logout
+from .devportal_schemes import ResetPasswordRequestID
+from .user.register import register_user
+from .user.login import process_login, issued_refresh_token, current_user_info, process_logout
+from .user.find_passwd import process_reset_user_password
 from .service_name import process_register_service
 from .redirect_uri import process_register_redirect_uri
 from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri
@@ -79,3 +81,13 @@ def register_redirect_uris(data : RegisterRedirectUri,
     '''
     result = process_register_redirect_uri(data,db,current_user)
     return result
+
+@devportal_router.post("/v1/reset-password")
+def reset_user_password(user_id: ResetPasswordRequestID, db:Session=Depends(get_db)):
+    '''
+    - 비밀번호 찾기 Endpoint
+    - user_id : 사용자 ID 입력
+    '''
+    process_reset_user_password(user_id.user_id, db)
+    return {"status" : status.HTTP_200_OK,
+            "message" : "Password reset successfully"}
