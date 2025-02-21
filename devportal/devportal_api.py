@@ -8,6 +8,7 @@ from .devportal_schemes import ResetPasswordRequestID
 from .user.register import register_user
 from .user.login import process_login, issued_refresh_token, current_user_info, process_logout
 from .user.find_passwd import process_reset_user_password
+from .user.delete_user import process_delete_user
 from .service_name import process_register_service
 from .redirect_uri import process_register_redirect_uri
 from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri
@@ -82,6 +83,7 @@ def register_redirect_uris(data : RegisterRedirectUri,
     result = process_register_redirect_uri(data,db,current_user)
     return result
 
+# Devportal에서 User의 비밀번호 Reset API
 @devportal_router.post("/v1/reset-password")
 def reset_user_password(user_id: ResetPasswordRequestID, db:Session=Depends(get_db)):
     '''
@@ -91,3 +93,12 @@ def reset_user_password(user_id: ResetPasswordRequestID, db:Session=Depends(get_
     process_reset_user_password(user_id.user_id, db)
     return {"status" : status.HTTP_200_OK,
             "message" : "Password reset successfully"}
+
+# Devportal에서 User 회원탈퇴 API
+@devportal_router.delete("/v1/delete-user")
+def delete_user(db:Session=Depends(get_db), current_user:dict=Depends(current_user_info)):
+    '''
+    - 사용자 탈퇴 Endpoint
+    '''
+    result = process_delete_user(db, current_user)
+    return result
