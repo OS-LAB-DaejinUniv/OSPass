@@ -111,6 +111,12 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
     로그인한 현재 사용자 정보(id,name 조회 가능)
     '''
     try:
+        # Redis 블랙리스트에서 Token 조회
+        # Logout 처리된 Token 거부
+        if rd.get(f"blacklist:{token}"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Token has been revoked(Logged Out)")
+        
         # Token Decoding
         payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
@@ -148,10 +154,11 @@ def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
         
         # Redis에 토큰 저장(key: f"blacklist{token}", value: "blacklisted", expire_time: 만료 시간)
         now = int(datetime.datetime.now().timestamp())
-        ttl = min(exp - now, 7 * 24 * 60 * 60) # 7일로 설정
+        ttl = max(exp -now , 0) # 0 이하 방지
+        ttl = min(exp - now, 7 * 24 * 60 * 60) # 최대 7일 유지
         if ttl > 0:
             rd.set(f"blacklist:{token}", "blacklisted")
-            rd.expire(f"blacklist{token}",ttl)
+            rd.expire(f"blacklist:{token}", ttl)
              
     # Cookie 삭제(Token 삭제)
         response.delete_cookie(key="access_token")
