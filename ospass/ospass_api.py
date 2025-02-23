@@ -6,13 +6,14 @@ from jose import jwt, JWTError
 import uuid
 import random
 
-from schemes import Card_Data, SessionKey
+from schemes import Card_Data, SessionKey, LoginForm
 from models import OsMember, API_Key
 from conn_postgre import get_db
 from database import redis_config
 from custom_log import LoggerSetup
 from .service.auth import process_verify_card_response, issue_access_token
 from .service.token import Oauth_Token
+from .service.ospass_login import process_ospass_login
 
 ospass_router = APIRouter(prefix="/api")
 
@@ -181,3 +182,18 @@ def issued_refresh_token(request:Request, response:Response):
         logger.error(f"Error in refrehs_access_token: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Internal Server Error during Token Refresh")
+        
+@ospass_router.post("/v1/ospass-login")
+def ospass_login(sliced_phone_num:str, db:Session=Depends(get_db)):
+    '''
+    - OSPASS Login API
+    - 사용자가 입력한 ID, Password를 통해 로그인 처리
+    - 서비스 서버가 사용할 API
+    '''
+    try:
+        return process_ospass_login(sliced_phone_num, db)
+    
+    except Exception as e:
+        logger.error(f"Error in ospass_login: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid Phone Number")
