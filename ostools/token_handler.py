@@ -31,4 +31,11 @@ class Token_Handler:
         expire = datetime.datetime.now() + datetime.timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp" : expire})
         return jwt.encode(to_encode, self.REFRESH_SECRET_KEY, algorithm= self.ALGORITHM)
-        
+    
+    def verify_token(self, token:str, is_refresh : bool = False):
+        try:
+            secret_key = self.REFRESH_SECRET_KEY if is_refresh else self.ACCESS_SECRET_KEY
+            payload = jwt.decode(token, secret_key, algorithms=[self.ALGORITHM])
+            return payload
+        except JWTError:
+            return None

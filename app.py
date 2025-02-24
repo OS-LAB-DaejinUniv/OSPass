@@ -5,8 +5,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 import uvicorn
 import logging
-from ostools.log_manage import api_key_manage
-from ostools.qrcode import ostools_api
+from ostools.ostools_api import ostools_router
 from devportal.devportal_api import devportal_router
 from ospass.ospass_api import ospass_router
 from custom_log import LoggerSetup
@@ -76,9 +75,8 @@ async def proxy_log(request: Request):
     return ip
 
 # 라우터 포함
-app.include_router(api_key_manage)
+app.include_router(ostools_router)
 app.include_router(ospass_router)
-app.include_router(ostools_api)
 app.include_router(devportal_router)
 
 

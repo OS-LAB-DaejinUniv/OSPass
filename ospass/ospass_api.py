@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -184,7 +184,7 @@ def issued_refresh_token(request:Request, response:Response):
                             detail="Internal Server Error during Token Refresh")
         
 @ospass_router.post("/v1/ospass-login")
-def ospass_login(sliced_phone_num:str, db:Session=Depends(get_db)):
+def ospass_login(sliced_phone_num:str = Form(...), db:Session=Depends(get_db)):
     '''
     - OSPASS Login API
     - 사용자가 입력한 ID, Password를 통해 로그인 처리

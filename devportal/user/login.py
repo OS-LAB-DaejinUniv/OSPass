@@ -31,7 +31,7 @@ def get_user_by_id(db : Session, user_id : str):
 def verify_token(token:str):
     try:
         # Redis 블랙리스트에서 Token 조회
-        if rd.get(token):
+        if rd.get(f"blacklist:{token}"):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Token is blacklisted")
         # Token 디코딩 및 검증
@@ -63,6 +63,14 @@ def process_login(response : Response, db : Session, login_form : LoginForm=Depe
     
     response.set_cookie(key="access_token", value=access_token, httponly=True)
     
+    # Refresh Token을 Redis에 저장
+    refresh_payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY,
+                                 algorithms=[token_handler.ALGORITHM])
+    refresh_exp = refresh_payload.get("exp")
+    now = int(datetime.datetime.now().timestamp())
+    ttl = refresh_exp - now
+    rd.set(f"refresh_token:{user.user_id}", refresh_token, ex=ttl)
+    
     return {
         "status" : status.HTTP_200_OK,
         "access_token" : access_token,
@@ -75,34 +83,34 @@ def issued_refresh_token(refresh_token : str):
     '''
     - Refresh Token 발급
     '''
-    # Exception Handling (예외 처리)
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid Refresh Token",
-        headers={"WWW-Authenticate" : "Bearer"}
-    )
     try:
-        # refresh token 유효성 검증(블랙리스트 포함 여부)
-        if rd.get(refresh_token):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail="Refresh Token is Blacklisted")
-            
+        # refresh token decoding
         payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         user_id  : str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    # New Access Token 생성
-    new_access_token = token_handler.create_access_token(data={"sub" : user_id})
-    return {
+        
+        # Redis에 저장된 refresh token 확인
+        stored_refresh_token = rd.get(f"refresh_token:{user_id}")
+        
+        # refresh token 유효성 검증(블랙리스트 포함 여부)
+        if not stored_refresh_token or stored_refresh_token.decode() != refresh_token:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid Refresh Token",
+                                headers={"WWW-Authenticate" : "Bearer"})
+        # New Access Token 생성
+        new_access_token = token_handler.create_access_token(data={"sub" : user_id})
+        
+        return {
         "status" : status.HTTP_200_OK,
         "access_token" : new_access_token,
         "token_type" : "bearer",
-        "message" : "Access Token refreshed successfully"
-    }
+        "message" : "Access Token refreshed successfully"}
+        
+    except JWTError:
+        raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Refresh Token",
+        headers={"WWW-Authenticate" : "Bearer"})
     
 # Current User Info 
 # user_id, user_name 조회
