@@ -38,11 +38,14 @@ class LoggerSetup:
         
         logging.Formatter.converter = custom_time
         
-        handler = logging.StreamHandler()
-        handler.setFormatter(self.CustomFormatter(fmt=log_format, datefmt=date_format))
-
         logger = logging.getLogger("custom_logger")
-        logger.setLevel(logging.DEBUG)  # Set default log level
-        logger.addHandler(handler)
+
+        # Check if the logger already has handlers before adding new ones
+        if not logger.hasHandlers():
+            handler = logging.StreamHandler()
+            handler.setFormatter(self.CustomFormatter(fmt=log_format, datefmt=date_format))
+            logger.setLevel(logging.DEBUG)  # Set default log level
+            logger.addHandler(handler)
+
         return logger
     

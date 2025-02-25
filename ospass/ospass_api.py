@@ -15,7 +15,7 @@ from .service.auth import process_verify_card_response, issue_access_token
 from .service.token import Oauth_Token
 from .service.ospass_login import process_ospass_login
 
-ospass_router = APIRouter(prefix="/api")
+ospass_router = APIRouter(prefix="/api", tags=["ospass"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

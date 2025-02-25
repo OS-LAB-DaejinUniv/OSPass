@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
+from typing import Optional
 from schemes import LoginForm
 from models import Users
 from .register import verify_password
@@ -43,8 +44,22 @@ def verify_token(token:str):
                             detail="Invalid Token")
 
 # Devportal Login Function
-def process_login(response : Response, db : Session, login_form : LoginForm=Depends()):
+def process_login(response : Response, token : Optional[str], 
+                  db : Session, login_form : LoginForm=Depends()):
     
+    # token이 있는 경우에만 블랙리스트 체크
+    # 기존 Access Token이 블랙리스트에 있는지 확인
+    if token:
+        if rd.get(f"blacklist:{token}"):
+            print(f'이미 토큰 있음:{token}')
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is blacklisted"
+            )
+        # 이미 로그인된 상태라면 로그인 거부
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Alreay Logged in. Plz logout first")
+        
     # ID 검증
     user = get_user_by_id(db, login_form.user_id)
     if not user:
@@ -119,8 +134,8 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
     로그인한 현재 사용자 정보(id,name 조회 가능)
     '''
     try:
-        # Redis 블랙리스트에서 Token 조회
-        # Logout 처리된 Token 거부
+        # Redis 블랙리스트에서 Access Token 조회
+        # Logout 처리된 Access Token 거부
         if rd.get(f"blacklist:{token}"):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Token has been revoked(Logged Out)")
@@ -150,7 +165,7 @@ def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
     token : access token을 Header에 담아 보내면 Logout 처리 
     '''
     try:
-        print(f"Extracted Token {token}")
+        print(f"Extracted Access Token {token}") # 추출된 access token
         payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY,
                              algorithms=[token_handler.ALGORITHM])
         # Expire Time (만료 시간)

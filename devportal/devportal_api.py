@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, status, Response
+from fastapi import APIRouter, Depends, status, Response, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from typing import Optional
 from conn_postgre import get_db
-
 from schemes import JoinUser, LoginForm
 from .devportal_schemes import ResetPasswordRequestID
 from .user.register import register_user
@@ -13,9 +13,12 @@ from .service_name import process_register_service
 from .redirect_uri import process_register_redirect_uri
 from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri
 
-devportal_router = APIRouter(prefix="/api")
+devportal_router = APIRouter(prefix="/api", tags=["devportal"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# auto_error=True(defautl 값) : 요청에 Autorization 헤더가 없으면 401 에러 발생시킴
+# auto_error=False : Authorization 헤더 없어도 에러 발생 X, 토큰이 없으면 None 반환, 개발자가 토큰 존재 여부 직접 처리
+# False로 설정한 이유 : id-login api 경우 최초 로그인 시 토큰 없는 것이 정상
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Devportal Register API
 @devportal_router.post("/v1/register")
@@ -29,11 +32,12 @@ def register(new_user:JoinUser, db:Session=Depends(get_db)):
 
 # Devportal Login API
 @devportal_router.post("/v1/id-login")
-def login(response : Response, db: Session=Depends(get_db), login_form: LoginForm = Depends()):
+def login(response : Response, token:Optional[str]=Depends(oauth2_scheme), 
+          db: Session=Depends(get_db), login_form: LoginForm = Depends()):
     '''
     - Devportal 로그인 Endpoint
     '''
-    return process_login(response, db, login_form)
+    return process_login(response, token, db, login_form)
 
 # Refresh Token 발급 API
 @devportal_router.post("/v1/id-refresh-token")
@@ -54,11 +58,14 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
 # Devportal Logout API
 @devportal_router.post("/v1/id-logout")
-def logout(response: Response, token: str = Depends(oauth2_scheme)):
+def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
     '''
     - Devportal Logout Endpoint
     - Token Blacklist 방식
     '''
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Token is required for logout")
     return process_logout(response, token)
 
 # Devportal에서 User의 Service 등록 API    

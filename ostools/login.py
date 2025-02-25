@@ -80,7 +80,7 @@ def issued_refresh_token(refresh_token:str, db:Session):
         "token_type" : "bearer"
     }
 
-def process_ostools_logout(refresh_token : str, db:Session):
+def process_ostools_logout(response : Response, refresh_token : str, db:Session):
     '''
     DB에 저장된 Refresh Token 삭제
     :param refresh_token : refresh token
@@ -90,6 +90,7 @@ def process_ostools_logout(refresh_token : str, db:Session):
     if stored_refresh_token:
         db.delete(stored_refresh_token)
         db.commit()
+    response.delete_cookie(key="access_token")
     return {
         "status" : status.HTTP_200_OK,
         "message" : "Logout Success"
