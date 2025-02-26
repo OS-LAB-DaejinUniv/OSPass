@@ -2,16 +2,20 @@ from fastapi import HTTPException, status, Form
 from sqlalchemy.orm import Session
 import httpx
 import json
+import os
+from dotenv import load_dotenv
 
 from models import Users
 # from schemes import Init_Login
+
+load_dotenv()
 
 # push server 통신
 def push_server_communication(sliced_phone_num:str, user_id:str):
     '''
     Push Server 통신 함수
     '''
-    url = "http://oci1.0xff.kr:8000/post" # Push Server URL
+    url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
     
     headers = {
         "Content-Type": "application/json"

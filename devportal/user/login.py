@@ -1,5 +1,5 @@
 # User Login API
-from fastapi import Depends, HTTPException, status, Response
+from fastapi import Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
@@ -76,8 +76,6 @@ def process_login(response : Response, token : Optional[str],
     # refresh token 생성
     refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id, "name" : user.user_name})
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True)
-    
     # Refresh Token을 Redis에 저장
     refresh_payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY,
                                  algorithms=[token_handler.ALGORITHM])
@@ -86,23 +84,37 @@ def process_login(response : Response, token : Optional[str],
     ttl = refresh_exp - now
     rd.set(f"refresh_token:{user.user_id}", refresh_token, ex=ttl)
     
+    # Refresh Token : HTTP-ONLY & Secure 쿠키 저장
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True, # XSS 보호
+        secure=True, # HTTPS 환경에서만 전송
+        samesite="lax", # CSRF 보호
+        max_age=ttl)
+    
     return {
         "status" : status.HTTP_200_OK,
         "access_token" : access_token,
-        "refresh_token" : refresh_token,
         "token_type" : "bearer",
         "message" : "Login Success"
     }
 
-def issued_refresh_token(refresh_token : str):
+def issued_refresh_token(request : Request):
     '''
-    - Refresh Token 발급
+    - 쿠키에서 Refresh Token을 가져와 검증 후 새로운 Access Token 발급
     '''
+    # cookie에서 refresh token 가져오기
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Refresh Token No Found")
     try:
         # refresh token decoding
         payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         user_id  : str = payload.get("sub")
+        user_name : str = payload.get("name")
         
         # Redis에 저장된 refresh token 확인
         stored_refresh_token = rd.get(f"refresh_token:{user_id}")
@@ -113,7 +125,7 @@ def issued_refresh_token(refresh_token : str):
                                 detail="Invalid Refresh Token",
                                 headers={"WWW-Authenticate" : "Bearer"})
         # New Access Token 생성
-        new_access_token = token_handler.create_access_token(data={"sub" : user_id})
+        new_access_token = token_handler.create_access_token(data={"sub" : user_id, "name" : user_name})
         
         return {
         "status" : status.HTTP_200_OK,
@@ -145,7 +157,7 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
                              algorithms=[token_handler.ALGORITHM])
         user_id = payload.get("sub")
         user_name = payload.get("name")
-        
+        print(f'Decoding Payload: {payload}')
         if not user_id or not user_name:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid token payload")
@@ -154,7 +166,8 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
             "user_id" : user_id,
             "user_name" : user_name
         }
-    except JWTError:
+    except JWTError as e:
+        logger.error(f'JWT ERROR: {str(e)}')
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid Token")
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Response, HTTPException
+from fastapi import APIRouter, Depends, status, Response, Request, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -41,11 +41,11 @@ def login(response : Response, token:Optional[str]=Depends(oauth2_scheme),
 
 # Refresh Token 발급 API
 @devportal_router.post("/v1/id-refresh-token")
-def refresh_token(refresh_token:str):
+def refresh_token(request : Request):
     '''
     - Refresh Token 발급 Endpoint
     '''
-    return issued_refresh_token(refresh_token)
+    return issued_refresh_token(request)
 
 # Currnet User Information API
 @devportal_router.get("/v1/current-user")
