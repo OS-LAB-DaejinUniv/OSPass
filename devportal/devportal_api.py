@@ -12,6 +12,7 @@ from .user.delete_user import process_delete_user
 from .service_name import process_register_service
 from .redirect_uri import process_register_redirect_uri
 from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri
+from .register_service._show_service import show_service
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
 
@@ -76,6 +77,15 @@ def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db
     '''
     result = process_register_service(request.service_name,db,current_user)
     return result
+
+@devportal_router.get("/v1/services/")
+def services(db:Session=Depends(get_db),current_user=Depends(current_user_info)):
+    '''
+    - 등록된 Service Infomation List Up Endpoint
+    '''
+    user_name = current_user["user_name"]
+    
+    return show_service(db, current_user)
 
 # Devportal에서 User의 Service Redirect Uri 등록 API
 @devportal_router.post("/v1/redirect-uris")
