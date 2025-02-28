@@ -7,7 +7,12 @@ class RegisterServiceRequset(BaseModel):
 class RegisterRedirectUri(BaseModel):
     client_id : str
     redirect_uri : List[HttpUrl] # HTTP, HTTPS Network Type Validation
-    
+
+class RedirectUriReponse(BaseModel):
+    service_name : str
+    client_id : str
+    redirect_uris : List[HttpUrl]
+
 # 비밀번호 Reset API Request user_id    
 class ResetPasswordRequestID(BaseModel):
     user_id : str

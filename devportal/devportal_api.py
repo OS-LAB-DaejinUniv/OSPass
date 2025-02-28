@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Response, Request, HTTPException
+from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -10,8 +10,8 @@ from .user.login import process_login, issued_refresh_token, current_user_info, 
 from .user.find_passwd import process_reset_user_password
 from .user.delete_user import process_delete_user
 from .service_name import process_register_service
-from .redirect_uri import process_register_redirect_uri
-from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri
+from .redirect_uri import process_register_redirect_uri, get_service_redirect_uri
+from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri, RedirectUriReponse
 from .register_service._show_service import show_service
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
@@ -99,6 +99,15 @@ def register_redirect_uris(data : RegisterRedirectUri,
     '''
     result = process_register_redirect_uri(data,db,current_user)
     return result
+
+# Devportal에서 User가 등록한 개별 Serivce에 대한 Redirect Uri Showing API
+@devportal_router.get("/v1/redirect_uris", response_model=RedirectUriReponse)
+def get_redirect_uris(service_name : str=Query(..., description="Service Name to fetch redirect URIs"),
+                              db:Session=Depends(get_db),
+                              current_user:dict=Depends(current_user_info)):
+    
+    return get_service_redirect_uri(service_name, db, current_user)
+    
 
 # Devportal에서 User의 비밀번호 Reset API
 @devportal_router.post("/v1/reset-password")

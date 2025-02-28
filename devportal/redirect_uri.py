@@ -43,25 +43,28 @@ def process_register_redirect_uri(data : RegisterRedirectUri,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Client ID not registered")
     
-    # 기존 redirect_uri 가져오기
-    existing_uris = set(api_key_record.registered_service[data.client_id].get("redirect_uri", []))
-    new_uris = set(str(uri) for uri in data.redirect_uri)
-    logger.debug(f'기존 redirect uri:{existing_uris}')
+    # 새로운 URI 목록에서 중복 제거
+    new_uris = list(set(str(uri) for uri in data.redirect_uri))
+    logger.debug(f'New Redirect URI: {new_uris}')
     
-    # 중복 방지
-    if new_uris.issubset(existing_uris):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="No new redirect URIs to add")
-    
-    logger.debug(f'Before update:{api_key_record.registered_service}')
-    # 업데이트된 redirect_uri 저장
-    api_key_record.registered_service[data.client_id]["redirect_uri"] = list(existing_uris | new_uris)
-    
-    ## flag_modified : JSONB 컬럼 변경 사항 명시적 알림 ## 
-    # sqlalchemy -> JSONB, ARRAY, HSTORE 같은 '복합 데이터 타입'을 다룰 때
-    # 변경 사항 자동 감지 못 하는 경우 있음
+    # URI가 비어있는 경우 처리
+    if not new_uris:
+        api_key_record.registered_service[data.client_id]["redirect_uri"] = []
+    else:
+        # URI 목록 내 중복 검사 및 유효성 검사
+        seen_uris = set()
+        valid_uris = []
+        for uri in new_uris:
+            uri = uri.strip()  # 앞뒤 공백 제거
+            if uri and uri not in seen_uris:  # 빈 문자열이 아니고 중복되지 않은 경우
+                seen_uris.add(uri)
+                valid_uris.append(uri)
+        
+        logger.debug(f'Valid URIs after deduplication: {valid_uris}')
+        api_key_record.registered_service[data.client_id]["redirect_uri"] = valid_uris
+
     flag_modified(api_key_record, "registered_service")
-    logger.debug(f'After update:{api_key_record.registered_service}')
+    logger.debug(f'After update: {api_key_record.registered_service}')
     
     try:
         db.commit()
@@ -77,3 +80,43 @@ def process_register_redirect_uri(data : RegisterRedirectUri,
         "message" : "Redirect URIs updated successfully!",
         "redirect_uris" : api_key_record.registered_service[data.client_id]["redirect_uri"]
     }
+
+# 작성한 redirect uri 가져오기
+def get_service_redirect_uri(service_name:str, db:Session, current_user : dict):
+    '''
+    - Redirect URI Select
+    - Service Name과과 매핑된 redirect_uri를 보여줌
+    '''
+    user_id = current_user["user_id"]
+    # apikey table user_id 기준 row
+    api_key_record = db.query(API_Key).filter(API_Key.user_id == user_id).first()
+    
+    if not api_key_record:
+        logger.error(f'Is Not {user_id}')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User Not Found")
+    
+    # 등록된 서비스 JSON 불러오기
+    registered_services = api_key_record.registered_service
+    
+    # service_name에 해당하는 client_id 찾기
+    # cid : client_id, service_info : registered_service value
+    client_id = None
+    for cid, service_info in registered_services.items():
+        if service_info.get("service_name") == service_name:
+            client_id = cid
+            break
+    
+    if not client_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Service {service_name} not found")
+    
+    redirect_uris = registered_services[client_id].get("redirect_uri", [])
+    
+    return {
+        "service_name" : service_name,
+        "client_id" : client_id,
+        "redirect_uris" : redirect_uris
+    }
+    
+    
