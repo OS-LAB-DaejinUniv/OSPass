@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Form, Response
+from fastapi import APIRouter, Depends, Form, Response, Query
 from sqlalchemy.orm import Session
 
 from conn_postgre import get_db
 from schemes import LoginForm
-from .login import process_ostools_login, issued_refresh_token, process_ostools_logout
+from .login import process_ostools_login, issued_refresh_token, process_ostools_logout, current_user_info
+from .register_uuid import process_register_uuid
 
 ostools_router = APIRouter(prefix="/api", tags=["ostools"])
 
@@ -30,3 +31,13 @@ def ostools_logout(response : Response, refresh_token : str=Form(...), db:Sessio
     OSTools Logout Endpoint
     '''
     return process_ostools_logout(response, refresh_token, db)
+
+# OSTools Register UUID API
+@ostools_router.post("/v1/uuid", description="OSTools Register User's Card UUID")
+def ostools_register_uuid(user_uuid:str=Form(...), 
+                          current_user:str=Depends(current_user_info),
+                          db:Session=Depends(get_db)):
+    '''
+    OSTools Register User's UUID Endpoint
+    '''
+    return process_register_uuid(user_uuid, current_user, db)

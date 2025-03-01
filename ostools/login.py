@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status, Depends, Response
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from datetime import datetime
@@ -11,7 +12,9 @@ from schemes import LoginForm
 from decrypt import decrypt_pp
 from custom_log import LoggerSetup
 
-token = Token_Handler() # JWT 관련 클래스 객체 생성
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+token_handler = Token_Handler() # JWT 관련 클래스 객체 생성
 
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
@@ -35,9 +38,9 @@ def process_ostools_login(response : Response, db:Session, login_form:LoginForm=
                             detail="Invalid User ID or Password")
     
     # access token 생성
-    access_token = token.create_access_token(data={"sub" : user.user_id})
+    access_token = token_handler.create_access_token(data={"sub" : user.user_id})
     # refresh token 생성
-    refresh_token = token.create_refresh_token(data={"sub" : user.user_id})
+    refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id})
     
     response.set_cookie(key="access_token", value=access_token, httponly=True, 
                         secure=True)
@@ -62,7 +65,7 @@ def issued_refresh_token(refresh_token:str, db:Session):
     DB에서 Refresh Token 관리 및 검증
     :param refresh_token : refresh token
     '''
-    payload = token.verify_token(refresh_token, is_refresh=True)
+    payload = token_handler.verify_token(refresh_token, is_refresh=True)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid Refresh Token")
@@ -74,7 +77,7 @@ def issued_refresh_token(refresh_token:str, db:Session):
                             detail="Refresh Token Not Found or Expired")
         
     # 새로운 Access Token 발급 : paylaod["sub"] -> user_id
-    new_access_token = token.create_access_token(data={"sub":payload["sub"]})
+    new_access_token = token_handler.create_access_token(data={"sub":payload["sub"]})
     return {
         "access_token" : new_access_token,
         "token_type" : "bearer"
@@ -110,8 +113,8 @@ def login(data : str, db : Session = Depends(get_db)):
         raise HTTPException(status_code=404,
                             detail="해당 UUID가 존재하지 않음")
         
-    access_token = token.create_access_token(data={"sub" : member_ssid.uuid}) # access token 생성
-    refresh_token = token.create_refresh_token(data={"sub" : member_ssid.uuid}) # refresh token 생성
+    access_token = token_handler.create_access_token(data={"sub" : member_ssid.uuid}) # access token 생성
+    refresh_token = token_handler.create_refresh_token(data={"sub" : member_ssid.uuid}) # refresh token 생성
     return {
         "status" : status.HTTP_200_OK,
         "access_token" : access_token,
@@ -119,29 +122,44 @@ def login(data : str, db : Session = Depends(get_db)):
         "token_type" : "bearer",
         "message" : "Login Success"
     }
-    
-# OStools APP에서 로그인 후 상태 유지 리프레시 토큰 발급 API
-# refresh token : login api에서 응답으로 오는 refresh token
-def refresh_token(refresh_token : str):
-    # 예외 처리
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid Refresh Token",
-        headers={"WWW-Authenticate" : "Bearer"}
-    )
-    try:
-        payload = jwt.decode(refresh_token, token.REFRESH_SECRET_KEY, algorithms=[token.ALGORITHM])
-        user_uuid : str = payload.get("sub")
-        if user_uuid is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    new_access_token = token.create_access_token(data={"sub" : user_uuid})
-    return {
-        "status" : status.HTTP_200_OK,
-        "access_token" : new_access_token,
-        "token_type" : "bearer",
-        "message" : "Access Token refreshed successfully"
-    }
 
+# Current User Info
+async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    '''
+    로그인 한 사용자 정보(user_id 조회 가능)
+    '''
+    try:
+        data = token_handler.verify_token(token)
+        user_id: str = data.get("sub")
+        
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Token payload"
+            )
+        
+        # 로그아웃 상태 확인
+        refresh_token = db.query(APP_Refresh_Tokens).filter(
+            APP_Refresh_Tokens.user_id == user_id,
+            APP_Refresh_Tokens.expires_at > datetime.now()
+        ).first()
+        
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User is logged out"
+            )
+        
+        return user_id
+        
+    except JWTError as je:
+        logger.error(f'JWT ERROR:{str(je)}')
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Token"
+        )
+    except HTTPException as he:
+        logger.error(f'Get Current User Info Error Occured:{str(he)}')
+        raise he
+
+        
