@@ -44,6 +44,7 @@ def process_register_redirect_uri(data : RegisterRedirectUri,
                             detail="Client ID not registered")
     
     # 새로운 URI 목록에서 중복 제거
+    # set() : 중복 방지
     new_uris = list(set(str(uri) for uri in data.redirect_uri))
     logger.debug(f'New Redirect URI: {new_uris}')
     
