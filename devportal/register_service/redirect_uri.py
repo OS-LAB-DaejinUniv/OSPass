@@ -6,7 +6,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from models import API_Key
 from custom_log import LoggerSetup
-from .devportal_schemes import RegisterRedirectUri
+from ..devportal_schemes import RegisterRedirectUri
 
 logger_setup = LoggerSetup()
 logger = logger_setup.logger

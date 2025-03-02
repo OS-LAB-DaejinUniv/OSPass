@@ -34,9 +34,11 @@ def push_server_communication(sliced_phone_num:str, user_id:str):
 def process_ospass_login(sliced_phone_num : str, db:Session):
     '''
     OSPASS Login 처리 함수
-    :param db: DB 세션
-    :param sliced_phone_num : User's Phone Number (010 제외)
-    :return : push server 통신 결과
+    :param 
+    - db: DB 세션
+    - sliced_phone_num : User's Phone Number (010 제외)
+    :return
+    - push server 통신 결과
     '''
     # 생략된 010 추가
     full_phone_num = f"010{sliced_phone_num}"

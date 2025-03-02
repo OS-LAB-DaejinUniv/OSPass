@@ -71,7 +71,7 @@ def issued_refresh_token(refresh_token:str, db:Session):
                             detail="Invalid Refresh Token")
     
     # DB에서 Refresh Token 확인
-    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.user_id == refresh_token).first()
+    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == refresh_token).first()
     if not stored_refresh_token or stored_refresh_token.expires_at < datetime.now():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Refresh Token Not Found or Expired")

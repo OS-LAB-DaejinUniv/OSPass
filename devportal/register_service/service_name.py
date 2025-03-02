@@ -3,7 +3,7 @@ Devportal에서 User가 Service Name 등록
 """
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from .user.login import current_user_info # 현재 user info 확인
+from ..user.login import current_user_info # 현재 user info 확인
 from models import API_Key
 from custom_log import LoggerSetup
 import string

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from challenge import gen_challenge
 from schemes import User, Card_Data, SessionKey, Token
-from models import OsMember, API_Key
+from models import Users, API_Key
 from database import redis_config
 from decrypt import decrypt_pp
 from custom_log import LoggerSetup
@@ -67,45 +67,11 @@ def process_verify_card_response(data:Card_Data, user_session:SessionKey, db: Se
     print("Challenge match: Correct")
     
     # STEP 2 : Decrypt된 UUID와 DB에 저장된 UUID 비교 검증
-    member_uuid = db.query(OsMember).filter(OsMember.uuid == decrypted_uuid).first()
+    member_uuid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first()
     if not member_uuid:
         logger.error(f"Member not found: {decrypted_uuid}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
                             detail="Member not found")
     return decrypted_uuid
-
-# access_token 발급 
-def issue_access_token(member_uuid: str, response : Response, expires_delta: timedelta | None = None):
-    # Access Token 생성
-    access_token_data = {
-        "sub": member_uuid,  # Decode된 OS Member UUID
-        "iat": datetime.now(ZoneInfo("Asia/Seoul")).timestamp()  # 토큰 발급 시간
-    }
-    # atd : access token data
-    access_token = token.create_access_token(data={"atd" : access_token_data}, 
-                                             expire_delta=expires_delta)
-    print(f"Created Access Token: {access_token}")
-    
-    # 쿠키에 access_token 저장
-    expire = datetime.now(ZoneInfo("Asia/Seoul")) + (expires_delta or timedelta(minutes=token.ACCESS_TOKEN_EXPIRE_MINUTES))
-    response.set_cookie(key="access_token", value=access_token, expires=expire, httponly=True)
-    
-    # Refresh Token 생성
-    refresh_token_data = {
-        "sub": member_uuid,  # Decode된 OS Member UUID
-        "iat": datetime.now(ZoneInfo("Asia/Seoul")).timestamp()
-    }
-    # refresh token 생성 및 저장
-    # rtd : refresh token data
-    refresh_token = token.create_refresh_token(data={"rtd" : refresh_token_data})
-    print(f"Created Refresh Token: {refresh_token}")
-    
-    # key : refhresh_token:{member_uuid}, value : refresh_token, ttl : refresh token exprie time * 60 minutes
-    rd.set(f"refresh_token:{member_uuid}", refresh_token, ex=token.REFRESH_TOKEN_EXPIRE_MINUTES * 60)  
-    
-    # Redis에서 Authorization Code 삭제 (재사용 방지)
-    rd.delete(member_uuid)
-    
-    return Token(access_token=access_token, token_type="bearer")
 
     

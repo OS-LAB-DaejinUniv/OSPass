@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from models import API_Key
-import json
 
 from ..user.login import current_user_info
 

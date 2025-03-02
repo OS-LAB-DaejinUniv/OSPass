@@ -9,8 +9,8 @@ from .user.register import register_user
 from .user.login import process_login, issued_refresh_token, current_user_info, process_logout
 from .user.find_passwd import process_reset_user_password
 from .user.delete_user import process_delete_user
-from .service_name import process_register_service
-from .redirect_uri import process_register_redirect_uri, get_service_redirect_uri
+from .register_service.service_name import process_register_service
+from .register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
 from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri, RedirectUriReponse
 from .register_service._show_service import show_service
 

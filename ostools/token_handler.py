@@ -1,9 +1,13 @@
+from fastapi import HTTPException, status
 from jose import jwt, JWTError
 from dotenv import load_dotenv
 import datetime
 import os 
-
+from custom_log import LoggerSetup
 load_dotenv() 
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 class Token_Handler:
     def __init__(self):
@@ -37,5 +41,7 @@ class Token_Handler:
             secret_key = self.REFRESH_SECRET_KEY if is_refresh else self.ACCESS_SECRET_KEY
             payload = jwt.decode(token, secret_key, algorithms=[self.ALGORITHM])
             return payload
-        except JWTError:
-            return None
+        except JWTError as je:
+            logger.error(f"JWT ERROR: {str(je)}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid Token")
