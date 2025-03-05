@@ -5,10 +5,12 @@ from database import redis_config
 
 rd = redis_config()
 
-# challenge 생성
-# 생성된 challenge와 카드에 담겨져 있는 response랑 비교
-# key : client_id
 def gen_challenge():
+    """
+    challenge 생성
+    생성된 challenge와 카드에 담겨져 있는 response랑 비교
+    key : client_id
+    """
     if rd is None:
         logging.error(msg="redis connection fail")
     

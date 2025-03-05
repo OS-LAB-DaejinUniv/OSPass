@@ -23,8 +23,11 @@ token = Oauth_Token()
 # Redis Connect
 rd = redis_config()
 
-# Usage: Challenge 발급 
+# Usage: 카드 인증용 Challenge 발급 
 def get_or_issue_challenge(user_session : SessionKey):
+    """
+    
+    """
     # exists : user_session이 존재하는지 확인
     # Redis에 저장된 value(challenge) 값이 있는지 확인
     if rd.exists(user_session): 

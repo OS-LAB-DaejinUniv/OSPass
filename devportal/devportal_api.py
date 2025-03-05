@@ -1,17 +1,18 @@
-from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query
+from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
 from conn_postgre import get_db
 from schemes import JoinUser, LoginForm
-from .devportal_schemes import ResetPasswordRequestID
 from .user.register import register_user
 from .user.login import process_login, issued_refresh_token, current_user_info, process_logout
 from .user.find_passwd import process_reset_user_password
 from .user.delete_user import process_delete_user
+from .user.modify_user import process_modify_user
 from .register_service.service_name import process_register_service
 from .register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
-from .devportal_schemes import RegisterServiceRequset, RegisterRedirectUri, RedirectUriReponse
+from .register_service.remove_service import process_remove_service
+from .devportal_schemes import UpdateUser, RegisterRedirectUri, RedirectUriReponse, RegisterServiceRequset
 from .register_service._show_service import show_service
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
@@ -69,6 +70,16 @@ def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
                             detail="Token is required for logout")
     return process_logout(response, token)
 
+# User Information Modifying
+@devportal_router.post("/v1/modify")
+def modify_user(_updateUser:UpdateUser, 
+                db:Session=Depends(get_db), 
+                current_user=Depends(current_user_info)):
+    '''
+    - Devportal에서 User Info 수정 Endpoint
+    '''
+    return process_modify_user(_updateUser, db, current_user)
+
 # Devportal에서 User의 Service 등록 API    
 @devportal_router.post("/v1/register-service")
 def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db), current_user=Depends(current_user_info)):
@@ -108,15 +119,26 @@ def get_redirect_uris(service_name : str=Query(..., description="Service Name to
     
     return get_service_redirect_uri(service_name, db, current_user)
     
+# Devportal에서 User가 등록한 개별 Service에 대한 Service 삭제 API
+@devportal_router.delete("/v1/service/{client_id}")
+async def remove_service(client_id:str,
+                         db:Session=Depends(get_db),
+                         current_user:str=Depends(current_user_info)):
+    '''
+    - 서비스 삭제 Endpoint
+    Args:
+    - client_id : 삭제할 서비스의 client_id(고유번호)
+    '''
+    return process_remove_service(client_id, db, current_user)
 
 # Devportal에서 User의 비밀번호 Reset API
 @devportal_router.post("/v1/reset-password")
-def reset_user_password(user_id: ResetPasswordRequestID, db:Session=Depends(get_db)):
+def reset_user_password(user_id:str=Form(...), db:Session=Depends(get_db)):
     '''
     - 비밀번호 찾기 Endpoint
     - user_id : 사용자 ID 입력
     '''
-    process_reset_user_password(user_id.user_id, db)
+    process_reset_user_password(user_id, db)
     return {"status" : status.HTTP_200_OK,
             "message" : "Password reset successfully"}
 

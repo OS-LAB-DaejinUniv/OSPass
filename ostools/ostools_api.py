@@ -18,7 +18,8 @@ def ostools_login(response : Response, db:Session = Depends(get_db), login_form:
 
 # OSTools Refresh Token API
 @ostools_router.post("/v1/ostools-refresh", description="OSTools Refresh Token API")
-def ostools_refresh(refresh_token:str, db:Session = Depends(get_db)):
+def ostools_refresh(refresh_token:str=Form(...), 
+                    db:Session = Depends(get_db)):
     '''
     OSTools Refresh Token Endpoint
     '''

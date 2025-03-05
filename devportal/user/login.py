@@ -36,7 +36,7 @@ def verify_token(token:str):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Token is blacklisted")
         # Token 디코딩 및 검증
-        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
+        payload = jwt.decode(token, token_handler.WEB_ACCESS_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         return payload
     except JWTError:
@@ -72,12 +72,12 @@ def process_login(response : Response, token : Optional[str],
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="Invalid User ID or Password")
     # access token 생성
-    access_token = token_handler.create_access_token(data={"sub" : user.user_id, "name" : user.user_name})
+    access_token = token_handler.web_create_access_token(data={"sub" : user.user_id, "name" : user.user_name})
     # refresh token 생성
-    refresh_token = token_handler.create_refresh_token(data={"sub" : user.user_id, "name" : user.user_name})
+    refresh_token = token_handler.web_create_refresh_token(data={"sub" : user.user_id, "name" : user.user_name})
     
     # Refresh Token을 Redis에 저장
-    refresh_payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY,
+    refresh_payload = jwt.decode(refresh_token, token_handler.WEB_REFRESH_SECRET_KEY,
                                  algorithms=[token_handler.ALGORITHM])
     refresh_exp = refresh_payload.get("exp")
     now = int(datetime.datetime.now().timestamp())
@@ -111,7 +111,7 @@ def issued_refresh_token(request : Request):
                             detail="Refresh Token No Found")
     try:
         # refresh token decoding
-        payload = jwt.decode(refresh_token, token_handler.REFRESH_SECRET_KEY, 
+        payload = jwt.decode(refresh_token, token_handler.WEB_REFRESH_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         user_id  : str = payload.get("sub")
         user_name : str = payload.get("name")
@@ -125,7 +125,7 @@ def issued_refresh_token(request : Request):
                                 detail="Invalid Refresh Token",
                                 headers={"WWW-Authenticate" : "Bearer"})
         # New Access Token 생성
-        new_access_token = token_handler.create_access_token(data={"sub" : user_id, "name" : user_name})
+        new_access_token = token_handler.web_create_access_token(data={"sub" : user_id, "name" : user_name})
         
         return {
         "status" : status.HTTP_200_OK,
@@ -153,7 +153,7 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
                                 detail="Token has been revoked(Logged Out)")
         
         # Token Decoding
-        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY, 
+        payload = jwt.decode(token, token_handler.WEB_ACCESS_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
         user_id = payload.get("sub")
         user_name = payload.get("name")
@@ -179,7 +179,7 @@ def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
     '''
     try:
         print(f"Extracted Access Token {token}") # 추출된 access token
-        payload = jwt.decode(token, token_handler.ACCESS_SECRET_KEY,
+        payload = jwt.decode(token, token_handler.WEB_ACCESS_SECRET_KEY,
                              algorithms=[token_handler.ALGORITHM])
         # Expire Time (만료 시간)
         exp = payload.get("exp")
