@@ -1,11 +1,13 @@
-from fastapi import HTTPException, status, Form
+from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import httpx
 import json
 import os
 from dotenv import load_dotenv
 
-from models import Users
+from ..schemes import InitLoginRequest
+from models import Users, API_Key
 from custom_log import LoggerSetup
 # from schemes import Init_Login
 
@@ -15,12 +17,11 @@ logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
 # push server 통신
-def push_server_communication(sliced_phone_num:str, user_id:str):
+def push_server_communication(client_id:str, sliced_phone_num:str, user_id:str):
     '''
     Push Server 통신 함수
     '''
-    # url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
-    url = "http://api.oslab:7999/post"
+    url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
     headers = {
         "Content-Type": "application/json",
         "Accept" : "application/json"
@@ -29,6 +30,7 @@ def push_server_communication(sliced_phone_num:str, user_id:str):
         "message": "OSPASS Login Success",
         "phone_num" : str(sliced_phone_num),
         "user_id" : str(user_id),
+        "client_id" : str(client_id),
         "status" : int(status.HTTP_200_OK)
     }
     try:
@@ -71,18 +73,19 @@ def push_server_communication(sliced_phone_num:str, user_id:str):
             "message": f"Unexpected error: {str(e)}"
         }
 # 1차 인증 수단
-def process_ospass_login(sliced_phone_num : str, db:Session):
+def process_ospass_login(request : InitLoginRequest, db:Session):
     '''
     OSPASS Login 처리 함수
     :param 
     - db: DB 세션
     - sliced_phone_num : User's Phone Number (010 제외)
+    - client_id : Devportal에서 등록한 서비스의 고유 식별 id(client_id)
     :return
     - push server 통신 결과
     '''
     try:
         # 생략된 010 추가
-        full_phone_num = f"010{sliced_phone_num}"
+        full_phone_num = f"010{request.sliced_phone_num}"
         print(f'Full Phone Number : {full_phone_num}')
         
         # 입력된 sliced_phone_num을 가진 row의 user_id 찾기 위한 객체 생성
@@ -92,8 +95,22 @@ def process_ospass_login(sliced_phone_num : str, db:Session):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="Invalid Phone Number")
         
+        # API_Key Table registered_service Row 추출
+        # has_key -> deleted from python3 
+        # but.. sqlalchemy uses it to check if there is a json key in JSONB case
+        _client_id = db.query(API_Key).filter(API_Key.registered_service.has_key(request.client_id)).first() 
+        
+        if not _client_id:
+            logger.error(f"Client ID not found in DB : {request.client_id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Not Found Your Registered Client_ID")
+        
+        client_id = _client_id.registered_service.get(request.client_id)
+        if _client_id:
+            print(f"Service Name: {client_id['service_name']}")
+            print(f"API KEY: {client_id['apikey']}")
         # Push Server Communication Result
-        push_result = push_server_communication(full_phone_num, user.user_id)
+        push_result = push_server_communication(_client_id, full_phone_num, user.user_id)
         
         if push_result.get("status") == "push_server_error":
             logger.error(f"Push Server Occured: {push_result.get('message')}")

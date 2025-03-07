@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form, Query, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from custom_log import LoggerSetup
 from .service.auth import process_verify_card_response
 from .service.token import Oauth_Token
 from .service.ospass_login import process_ospass_login
+from .schemes import InitLoginRequest
 
 ospass_router = APIRouter(prefix="/api", tags=["ospass"])
 
@@ -29,14 +30,17 @@ logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
 @ospass_router.post("/v1/ospass-login")
-def ospass_login(sliced_phone_num:str = Form(...), db:Session=Depends(get_db)):
+def ospass_login(request : InitLoginRequest, 
+                 db:Session=Depends(get_db)):
     '''
     - OSPASS Login API
     - 사용자가 입력한 ID, Password를 통해 로그인 처리
     - 서비스 서버가 사용할 API
+    :params 
+    - request -> {client_id , sliced_phone_num}
     '''
     try:
-        return process_ospass_login(sliced_phone_num, db)
+        return process_ospass_login(request, db)
     
     except Exception as e:
         logger.error(f"Error in ospass_login: {str(e)}")
