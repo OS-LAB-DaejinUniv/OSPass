@@ -5,8 +5,8 @@ import httpx
 import json
 import os
 from dotenv import load_dotenv
-
 from ..schemes import InitLoginRequest
+from .auth import get_or_issue_challenge
 from models import Users, API_Key
 from custom_log import LoggerSetup
 # from schemes import Init_Login
@@ -17,11 +17,15 @@ logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
 # push server 통신
-def push_server_communication(client_id:str, sliced_phone_num:str, user_id:str):
+def push_server_communication(client_id:str, 
+                              sliced_phone_num:str,
+                              challenge:str, 
+                              user_id:str):
     '''
     Push Server 통신 함수
     '''
-    url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
+    # url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
+    url = "http://api.oslab:7999/post"
     headers = {
         "Content-Type": "application/json",
         "Accept" : "application/json"
@@ -31,6 +35,7 @@ def push_server_communication(client_id:str, sliced_phone_num:str, user_id:str):
         "phone_num" : str(sliced_phone_num),
         "user_id" : str(user_id),
         "client_id" : str(client_id),
+        "challenge" : str(challenge),
         "status" : int(status.HTTP_200_OK)
     }
     try:
@@ -73,7 +78,7 @@ def push_server_communication(client_id:str, sliced_phone_num:str, user_id:str):
             "message": f"Unexpected error: {str(e)}"
         }
 # 1차 인증 수단
-def process_ospass_login(request : InitLoginRequest, db:Session):
+def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
     '''
     OSPASS Login 처리 함수
     :param 
@@ -98,19 +103,26 @@ def process_ospass_login(request : InitLoginRequest, db:Session):
         # API_Key Table registered_service Row 추출
         # has_key -> deleted from python3 
         # but.. sqlalchemy uses it to check if there is a json key in JSONB case
-        _client_id = db.query(API_Key).filter(API_Key.registered_service.has_key(request.client_id)).first() 
+        api_key_record = db.query(API_Key).filter(API_Key.registered_service.has_key(client_id)).first() 
         
-        if not _client_id:
-            logger.error(f"Client ID not found in DB : {request.client_id}")
+        if not api_key_record:
+            logger.error(f"Client ID not found in DB : {client_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail="Not Found Your Registered Client_ID")
         
-        client_id = _client_id.registered_service.get(request.client_id)
-        if _client_id:
-            print(f"Service Name: {client_id['service_name']}")
-            print(f"API KEY: {client_id['apikey']}")
+        client_data = api_key_record.registered_service.get(client_id)
+        if client_data:
+            print(f"Service Name: {client_data['service_name']}")
+            print(f"API KEY: {client_data['apikey']}")
+            
+        challenge = get_or_issue_challenge(client_id)
+        print(f"생성된 Challenge: {challenge}")
+        
         # Push Server Communication Result
-        push_result = push_server_communication(_client_id, full_phone_num, user.user_id)
+        push_result = push_server_communication(client_data, 
+                                                full_phone_num, 
+                                                challenge, 
+                                                user.user_id)
         
         if push_result.get("status") == "push_server_error":
             logger.error(f"Push Server Occured: {push_result.get('message')}")

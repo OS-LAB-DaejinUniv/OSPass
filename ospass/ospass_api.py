@@ -30,17 +30,18 @@ logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
 @ospass_router.post("/v1/ospass-login")
-def ospass_login(request : InitLoginRequest, 
+def ospass_login(request : InitLoginRequest,
+                 client_id : str=Query(...),  
                  db:Session=Depends(get_db)):
     '''
     - OSPASS Login API
     - 사용자가 입력한 ID, Password를 통해 로그인 처리
     - 서비스 서버가 사용할 API
     :params 
-    - request -> {client_id , sliced_phone_num}
+    - client_id : 서비스 서버는 api를 사용할 때 client_id를 쿼리스트링에 포함시켜 요청
     '''
     try:
-        return process_ospass_login(request, db)
+        return process_ospass_login(request, client_id, db)
     
     except Exception as e:
         logger.error(f"Error in ospass_login: {str(e)}")
@@ -63,7 +64,7 @@ async def verify_card_response(data : Card_Data, user_session : SessionKey,
             raise HTTPException(status_code=404, detail="Member not found")
         
         # 일치하면 Session ID 발급 후 쿠키에 저장
-        s_id = str(uuid.uuid4()) # 세션 아이디 하나 생성
+        s_id = str(uuid.uuid4()) # 세션 아이디 하나 생성 : 사용자 식별용
         response.set_cookie(key="MySessionID", value=s_id, 
                             httponly=True, secure=True)
         
