@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form, Query, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from urllib.parse import urlencode
@@ -80,7 +81,7 @@ async def verify_card_response(data : Card_Data, user_session : SessionKey,
     
 @ospass_router.get("/v1/authorization")
 async def authorize(response_type : str = Query(...), # "code"로 고정
-                    API_KEY : str = Query(...), 
+                    APIKEY : str = Query(...), 
                     redirect_uri : str = Query(...),
                     request : Request = Request, 
                     db : Session = Depends(get_db)):
@@ -96,7 +97,9 @@ async def authorize(response_type : str = Query(...), # "code"로 고정
     '''
     try:
         # STEP 1. API KEY 검증
-        user_api_key = db.query(API_Key).filter(API_Key.registered_service["apikey"] == API_KEY).first()
+        user_api_key = db.query(API_Key).filter(
+            text("EXISTS (SELECT 1 FROM jsonb_each(registered_service) as t WHERE t.value->>'apikey' = :api_key)")
+            ).params(api_key=APIKEY).first()
         if not user_api_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid API KEY")
@@ -118,7 +121,7 @@ async def authorize(response_type : str = Query(...), # "code"로 고정
         # STEP 5. Redis에 인가 코드 저장(추가 정보 포함)
         auth_data = {
             "code" : authorization_code,
-            "api_key" : API_KEY,
+            "api_key" : APIKEY,
             "redirect_uri" : redirect_uri,
             "session_id" : s_id
         }
@@ -145,7 +148,7 @@ async def authorize(response_type : str = Query(...), # "code"로 고정
 
 @ospass_router.post("/v1/token")
 def ospass_login_callback(grant_type:str=Form(...),
-                          API_KEY:str=Form(...),
+                          APIKEY:str=Form(...),
                           redirect_uri:str=Form(...),
                           code:str=Form(...), 
                           db:Session=Depends(get_db)):
@@ -156,8 +159,9 @@ def ospass_login_callback(grant_type:str=Form(...),
     - 서비스 서버가 사용할 API
     :params
     - grant_type : authorization_code로 고정
-    - API KEY : Devportal에서 발급받은 서비스의 API KEY
+    - APIKEY : Devportal에서 발급받은 서비스의 APIKEY
     - redirect_uri : Devportal에 등록한 서비스의 redirect uri
+    - code: 인가 코드(authorization에서 받은 인가코드)
     '''
     try:
         # STEP 1. grant_type 검증
@@ -166,7 +170,9 @@ def ospass_login_callback(grant_type:str=Form(...),
                                 detail="Invalid grant_type")
         
         # STEP 2. API KEY 검증
-        api_key = db.query(API_Key).filter(API_Key.registered_service["apikey"] == API_KEY).first()
+        api_key = db.query(API_Key).filter(
+            text("EXISTS (SELECT 1 FROM jsonb_each(registered_service) as t WHERE t.value->>'apikey' = :api_key)")
+            ).params(api_key=APIKEY).first()
         if not api_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid API KEY")
@@ -282,3 +288,39 @@ def issued_refresh_token(grant_type:str=Form(...),
         logger.error(f"Token Refresh Error: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error refresh token")
+
+@ospass_router.post("/v1/logout")
+def logout(response : Response, access_token:str=Depends(oauth2_scheme)):
+    """
+    - 로그아웃 API
+    - 클라이언트가 전달한 access token을 이용하여 세션을 식별하고,
+      Redis에 저장된 refresh token과 세션 정보를 삭제합니다.
+    - 쿠키에 저장된 MySessionID도 삭제하여 클라이언트 측 인증 정보를 제거합니다.
+    :param access_token: OAuth2 Bearer 토큰
+    :return: 로그아웃 성공 메시지
+    """
+    try:
+        payload = jwt.decode(access_token, token.ACCESS_SECRET_KEY,
+                            algorithms=[token.ALGORITHM])
+        s_id = payload.get("sub")
+        if not s_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid token")
+
+        # Redis에 저장된 refresh token 및 Session Data(s_id) 삭제
+        rd.delete(f"refresh_token:{s_id}")
+        rd.delete(s_id)
+        
+        # 클라이언트 쿠키 삭제
+        response.delete_cookie(key="MySessionID")
+        
+        return {"message" : "Logged Out Successfully"}
+
+    except JWTError as je:
+        logger.error(f"JWT Error:{str(je)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid Token")
+    except Exception as e:
+        logger.error(f"Error Occured while Logout:{str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Error during Logout")

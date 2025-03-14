@@ -29,7 +29,7 @@ def get_user_by_id(db : Session, user_id : str):
 
 # Token Validation Verifying
 # When to Use: 인증이 필요한 경우 사용 -> 토큰의 존재 여부를 판단 
-def verify_token(token:str):
+def verify_token(token:str=Depends(oauth2_scheme)):
     try:
         # Redis 블랙리스트에서 Token 조회
         if rd.get(f"blacklist:{token}"):
@@ -128,10 +128,11 @@ def issued_refresh_token(request : Request):
         new_access_token = token_handler.web_create_access_token(data={"sub" : user_id, "name" : user_name})
         
         return {
-        "status" : status.HTTP_200_OK,
         "access_token" : new_access_token,
         "token_type" : "bearer",
-        "message" : "Access Token refreshed successfully"}
+        "expires_in" : 3600,
+        "message" : "Access Token refreshed successfully"
+        }
         
     except JWTError:
         raise HTTPException(

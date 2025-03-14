@@ -2,14 +2,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import httpx
-import json
-import os
 from dotenv import load_dotenv
 from ..schemes import InitLoginRequest
 from .auth import get_or_issue_challenge
 from models import Users, API_Key
 from custom_log import LoggerSetup
-# from schemes import Init_Login
 
 load_dotenv()
 
@@ -30,6 +27,7 @@ def push_server_communication(client_id:str,
         "Content-Type": "application/json",
         "Accept" : "application/json"
     }
+    # Push Server에서 2차 가공 필요
     data = {
         "message": "OSPASS Login Success",
         "phone_num" : str(sliced_phone_num),
@@ -103,7 +101,9 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
         # API_Key Table registered_service Row 추출
         # has_key -> deleted from python3 
         # but.. sqlalchemy uses it to check if there is a json key in JSONB case
-        api_key_record = db.query(API_Key).filter(API_Key.registered_service.has_key(client_id)).first() 
+        api_key_record = db.query(API_Key).filter(
+            func.jsonb_exists(API_Key.registered_service, client_id)
+        ).first()
         
         if not api_key_record:
             logger.error(f"Client ID not found in DB : {client_id}")
@@ -112,6 +112,7 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
         
         client_data = api_key_record.registered_service.get(client_id)
         if client_data:
+            print(f"Client ID: {client_id}")
             print(f"Service Name: {client_data['service_name']}")
             print(f"API KEY: {client_data['apikey']}")
             
@@ -119,7 +120,7 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
         print(f"생성된 Challenge: {challenge}")
         
         # Push Server Communication Result
-        push_result = push_server_communication(client_data, 
+        push_result = push_server_communication(client_id, 
                                                 full_phone_num, 
                                                 challenge, 
                                                 user.user_id)

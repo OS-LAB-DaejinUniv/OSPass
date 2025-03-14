@@ -51,7 +51,7 @@ def refresh_token(request : Request):
 
 # Currnet User Information API
 @devportal_router.get("/v1/current-user")
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str=Depends(oauth2_scheme)):
     '''
     - Devportal Current User Information Endpoint
     - user_id, user_name 제공
@@ -150,3 +150,18 @@ def delete_user(db:Session=Depends(get_db), current_user:dict=Depends(current_us
     '''
     result = process_delete_user(db, current_user)
     return result
+
+# MSA를 위한 사용자 인증 API
+@devportal_router.get("/v1/protected-service")
+def protected_service(user_info:dict=Depends(current_user_info)):
+    """
+    인증된 사용자만 접근할 수 있는 서비스(인증 Endpoint)
+    Micro Service에서 호출할 API
+    """
+    if user_info["status"] != status.HTTP_200_OK:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Unauthorized")
+    
+    # 인증된 사용자에게 제공
+    return {"message" : "인증된 상태입니다.",
+            "user" : user_info}
