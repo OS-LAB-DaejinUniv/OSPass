@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from conn_postgre import get_db
@@ -14,8 +15,12 @@ from .register_service.redirect_uri import process_register_redirect_uri, get_se
 from .register_service.remove_service import process_remove_service
 from .devportal_schemes import UpdateUser, RegisterRedirectUri, RedirectUriReponse, RegisterServiceRequset
 from .register_service._show_service import show_service
+from custom_log import LoggerSetup
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
 
 # auto_error=True(defautl 값) : 요청에 Autorization 헤더가 없으면 401 에러 발생시킴
 # auto_error=False : Authorization 헤더 없어도 에러 발생 X, 토큰이 없으면 None 반환, 개발자가 토큰 존재 여부 직접 처리
@@ -28,9 +33,21 @@ def register(new_user:JoinUser, db:Session=Depends(get_db)):
     '''
     - Devportal 회원가입 Endpoint
     '''
-    register_user(new_user, db)
-    return {"status" : status.HTTP_201_CREATED,
-            "message" : "User registration successful"}
+    try:
+        user = register_user(new_user, db)
+        return {
+            "status": status.HTTP_201_CREATED,
+            "message": "User registration successful",
+            "data": {
+                "uid": user.uid,
+                "user_id": user.user_id
+            }
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unhandled error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 # Devportal Login API
 @devportal_router.post("/v1/id-login")

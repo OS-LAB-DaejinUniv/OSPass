@@ -17,8 +17,8 @@ class OsMember(Base):
 
 class Users(Base):
     __tablename__ = "users"
-    
-    user_id = Column(String, primary_key=True, index=True)
+    uid = Column(String, primary_key=True, nullable=False, index=True)
+    user_id = Column(String, unique=True, nullable=False)
     user_password = Column(String, nullable=False)
     user_name = Column(String, nullable=False)
     phone_num = Column(String, nullable=False, unique=True)

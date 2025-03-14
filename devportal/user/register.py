@@ -4,6 +4,7 @@ from schemes import JoinUser
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from custom_log import LoggerSetup
+import uuid
 
 # bcrypt context 초기화
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -22,8 +23,10 @@ def register_user(new_user : JoinUser, db : Session):
         
         # password hashing
         hashed_password = bcrypt_context.hash(new_user.user_password)
+        uid = uuid.uuid4().hex # 32자리의 사용자 고유 식별 ID
         # 새로운 사용자 생성
         newbie = Users(
+            uid = uid,
             user_id = new_user.user_id,
             user_password = hashed_password,
             user_name = new_user.user_name,

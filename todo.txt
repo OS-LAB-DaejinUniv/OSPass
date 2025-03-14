@@ -39,3 +39,6 @@ Flow
 6. 인증 과정에서 사용되는 세션 아이디 token 담지 말 것 - 수정하기
 
 - 파일구조 다시 
+
+바꿔야 할 것
+- jwt data 변경(devporatl/user/login : login, current_user_info) & (ostools/login/login)
