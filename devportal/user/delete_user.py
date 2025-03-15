@@ -15,7 +15,7 @@ def process_delete_user(db:Session, current_user:dict):
     '''
     try:
         # 현재 사용자 정보 가져오기
-        current_user = current_user.get("user_id")
+        current_user = current_user.get("uid")
         
         # 사용자 정보가 없는 경우
         if not current_user:

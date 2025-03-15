@@ -23,7 +23,7 @@ rd = redis_config()
 # Token Handler Instance
 token_handler = Token_Handler()
 
-# User 존재(가입) 여부 확인
+# User ID 조회
 def get_user_by_id(db : Session, user_id : str):
     return db.query(Users).filter(Users.user_id == user_id).first()
 
@@ -61,20 +61,26 @@ def process_login(response : Response, token : Optional[str],
                             detail="Alreay Logged in. Plz logout first")
         
     # ID 검증
-    user = get_user_by_id(db, login_form.user_id)
-    if not user:
+    _userid = get_user_by_id(db, login_form.user_id)
+    if not _userid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="Invalid User ID or Password")
     
     # Password 검증
-    res = verify_password(login_form.user_password, user.user_password)
-    if not res:
+    _userpwd = verify_password(login_form.user_password, _userid.user_password)
+    if not _userpwd:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail="Invalid User ID or Password")
+    # UID 조회 <- Token Payload에 저장
+    user = db.query(Users).filter(Users.user_id == _userid.user_id).first()
+    print(f"User Info:{user.uid}")
+    if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="Invalid User ID or Password")
     # access token 생성
-    access_token = token_handler.web_create_access_token(data={"sub" : user.user_id, "name" : user.user_name})
+    access_token = token_handler.web_create_access_token(data={"sub" : user.uid, "name" : user.user_name})
     # refresh token 생성
-    refresh_token = token_handler.web_create_refresh_token(data={"sub" : user.user_id, "name" : user.user_name})
+    refresh_token = token_handler.web_create_refresh_token(data={"sub" : user.uid, "name" : user.user_name})
     
     # Refresh Token을 Redis에 저장
     refresh_payload = jwt.decode(refresh_token, token_handler.WEB_REFRESH_SECRET_KEY,
@@ -82,7 +88,16 @@ def process_login(response : Response, token : Optional[str],
     refresh_exp = refresh_payload.get("exp")
     now = int(datetime.datetime.now().timestamp())
     ttl = refresh_exp - now
-    rd.set(f"refresh_token:{user.user_id}", refresh_token, ex=ttl)
+    rd.set(f"refresh_token:{user.uid}", refresh_token, ex=ttl)
+    
+    # Access Token : HTTP-ONLY & Secure 쿠키 저장
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True, # XSS 보호
+        secure=True, # HTTPS 환경에서만 전송
+        samesite="lax", # CSRF 보호
+        max_age=3600) # 1시간
     
     # Refresh Token : HTTP-ONLY & Secure 쿠키 저장
     response.set_cookie(
@@ -106,6 +121,7 @@ def issued_refresh_token(request : Request):
     '''
     # cookie에서 refresh token 가져오기
     refresh_token = request.cookies.get("refresh_token")
+    print(f"refresh token get cookie:{refresh_token}")
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Refresh Token No Found")
@@ -113,11 +129,11 @@ def issued_refresh_token(request : Request):
         # refresh token decoding
         payload = jwt.decode(refresh_token, token_handler.WEB_REFRESH_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
-        user_id  : str = payload.get("sub")
-        user_name : str = payload.get("name")
+        _uid  : str = payload.get("sub")
+        _uname : str = payload.get("name")
         
         # Redis에 저장된 refresh token 확인
-        stored_refresh_token = rd.get(f"refresh_token:{user_id}")
+        stored_refresh_token = rd.get(f"refresh_token:{_uid}")
         
         # refresh token 유효성 검증(블랙리스트 포함 여부)
         if not stored_refresh_token or stored_refresh_token.decode() != refresh_token:
@@ -125,7 +141,7 @@ def issued_refresh_token(request : Request):
                                 detail="Invalid Refresh Token",
                                 headers={"WWW-Authenticate" : "Bearer"})
         # New Access Token 생성
-        new_access_token = token_handler.web_create_access_token(data={"sub" : user_id, "name" : user_name})
+        new_access_token = token_handler.web_create_access_token(data={"sub" : _uid, "name" : _uname})
         
         return {
         "access_token" : new_access_token,
@@ -156,15 +172,15 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
         # Token Decoding
         payload = jwt.decode(token, token_handler.WEB_ACCESS_SECRET_KEY, 
                              algorithms=[token_handler.ALGORITHM])
-        user_id = payload.get("sub")
+        _uid = payload.get("sub")
         user_name = payload.get("name")
         print(f'Decoding Payload: {payload}')
-        if not user_id or not user_name:
+        if not _uid or not user_name:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid token payload")
         return {
             "status" : status.HTTP_200_OK,
-            "user_id" : user_id,
+            "uid" : _uid,
             "user_name" : user_name
         }
     except JWTError as e:
@@ -189,16 +205,16 @@ def process_logout(response : Response, token : str = Depends(oauth2_scheme)):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                                 detail="Invalid Token")
         
-        # Redis에 토큰 저장(key: f"blacklist{token}", value: "blacklisted", expire_time: 만료 시간)
+        # Redis에 access token 저장 -> Blacklist 처리
+        # (key: f"blacklist{token}", value: "blacklisted", expire_time: 만료 시간)
         now = int(datetime.datetime.now().timestamp())
         ttl = max(exp -now , 0) # 0 이하 방지
-        ttl = min(exp - now, 7 * 24 * 60 * 60) # 최대 7일 유지
         if ttl > 0:
-            rd.set(f"blacklist:{token}", "blacklisted")
-            rd.expire(f"blacklist:{token}", ttl)
+            rd.setex(f"blacklist:{token}", ttl, "blacklisted")
              
     # Cookie 삭제(Token 삭제)
         response.delete_cookie(key="access_token")
+        response.delete_cookie(key="refresh_token")
         return {"status" : status.HTTP_200_OK, "message" : "Logout Success"}
     except JWTError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 

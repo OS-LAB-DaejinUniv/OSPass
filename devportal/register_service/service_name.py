@@ -35,8 +35,8 @@ def process_register_service(register_service_name:str, db:Session,
     - service name 등록
     '''
     # 현재 사용자 user_id
-    user_id = current_user["user_id"]
-    if not user_id:
+    _uid = current_user["uid"]
+    if not _uid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Invalid User")
     # client_id 생성 함수 호출
@@ -46,7 +46,7 @@ def process_register_service(register_service_name:str, db:Session,
     api_key = gen_api_key()
     
     # 기존 API_Key 테이블 데이터 존재 여부
-    existing_api_key = db.query(API_Key).filter(API_Key.user_id == user_id).first()
+    existing_api_key = db.query(API_Key).filter(API_Key.uid == _uid).first()
     
     if existing_api_key:
         # 기존 데이터 업데이트
@@ -62,7 +62,8 @@ def process_register_service(register_service_name:str, db:Session,
     else:
         # 새 데이터 생성
         new_service = API_Key(
-            user_id=user_id,
+            uid = _uid,
+            user_id=existing_api_key.user_id,
             registered_service={
                 client_id:{
                     "service_name":register_service_name,

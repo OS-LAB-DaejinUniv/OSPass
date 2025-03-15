@@ -20,7 +20,7 @@ def process_modify_user(_updateUser: UpdateUser, db:Session, current_user:dict):
     """
     try:
         # 로그인 된 사용자만 접근 가능
-        current_user = current_user["user_id"]
+        current_user = current_user["uid"]
         if not current_user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid User")

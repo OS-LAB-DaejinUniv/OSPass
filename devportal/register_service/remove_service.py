@@ -15,8 +15,8 @@ def process_remove_service(client_id:str, db:Session, current_user=Depends(curre
     - client_id : 삭제할 서비스의 client_id(JSON key)
     '''
     try:
-        _user = current_user["user_id"]
-        api_key_record = db.query(API_Key).filter(API_Key.user_id == _user).first()
+        _uid = current_user["uid"]
+        api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).first()
         
         if not api_key_record:
             raise HTTPException(

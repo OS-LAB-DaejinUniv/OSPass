@@ -28,7 +28,7 @@ class Users(Base):
     user_uuid = Column(String, nullable=True, unique=True)
     
     # Users와 API_Key 테이블 간 관계 설정
-    apikey = relationship("API_Key", back_populates="user")
+    apikey = relationship("API_Key", back_populates="user", foreign_keys="API_Key.uid")
     
     # Users와 APP_Refresh_Tokens 테이블 간 관계 설정
     app_refresh_tokens = relationship("APP_Refresh_Tokens", back_populates="user")
@@ -38,11 +38,12 @@ class API_Key(Base):
     
     idx = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, ForeignKey('users.user_id'), nullable=False)
+    uid = Column(String, ForeignKey('users.uid'), nullable=False)
     timestamp = Column(TIMESTAMP, server_default=func.now()) # key 생성 시간 
     # SQLAlchmey에서 JSON 타입 컬럼은 Immutable 함 -> MutableDict로 변경
     registered_service = Column(MutableDict.as_mutable(JSONB), nullable=True)
     
-    user = relationship("Users", back_populates="apikey")
+    user = relationship("Users", back_populates="apikey", foreign_keys=[uid])
 
 class APP_Refresh_Tokens(Base):
     __tablename__ = "app_refresh_tokens"

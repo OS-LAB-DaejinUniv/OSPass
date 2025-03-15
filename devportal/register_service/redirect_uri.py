@@ -24,11 +24,10 @@ def process_register_redirect_uri(data : RegisterRedirectUri,
     '''
     # 현재 사용자 user_id 가져오기
     # current_user_info return value => user_id
-    user_id = current_user["user_id"]
-    logger.debug(f'Current User ID: {user_id}')
-    
+    _uid = current_user["uid"]
+
     # API_Key Table 특정 Record
-    api_key_record = db.query(API_Key).filter(API_Key.user_id == user_id).first()
+    api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).first()
     
     if not api_key_record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -88,12 +87,12 @@ def get_service_redirect_uri(service_name:str, db:Session, current_user : dict):
     - Redirect URI Select
     - Service Name과과 매핑된 redirect_uri를 보여줌
     '''
-    user_id = current_user["user_id"]
+    _uid = current_user["uid"]
     # apikey table user_id 기준 row
-    api_key_record = db.query(API_Key).filter(API_Key.user_id == user_id).first()
+    api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).first()
     
     if not api_key_record:
-        logger.error(f'Is Not {user_id}')
+        logger.error(f'Is Not {api_key_record.user_id}')
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="User Not Found")
     

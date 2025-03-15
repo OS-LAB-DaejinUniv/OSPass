@@ -14,13 +14,14 @@ def show_service(db:Session, current_user=Depends(current_user_info)):
     :return service_list (service name, client_id, apikey)
     '''
     
-    user_id = current_user["user_id"]
-    if not user_id:
+    _uid = current_user["uid"]
+    if not _uid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid User")
     # API_Key Table Row 추출
-    row_api_key = db.query(API_Key).filter(API_Key.user_id == user_id).first()
-    if not row_api_key:
+    row_api_key = db.query(API_Key).filter(API_Key.uid == _uid).first()
+    user_id = row_api_key.user_id
+    if not user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Result Not Found for user:{user_id} ")
     # registered_service 컬럼(JSONB 데이터) 파싱
