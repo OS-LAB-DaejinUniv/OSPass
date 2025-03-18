@@ -41,4 +41,4 @@ Flow
 - 파일구조 다시 
 
 바꿔야 할 것
-- jwt data 변경(devporatl/user/login : login, current_user_info) & (ostools/login/login)
+- jwt data 변경(ostools)

@@ -13,7 +13,7 @@ from .user.modify_user import process_modify_user
 from .register_service.service_name import process_register_service
 from .register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
 from .register_service.remove_service import process_remove_service
-from .devportal_schemes import UpdateUser, RegisterRedirectUri, RedirectUriReponse, RegisterServiceRequset
+from .devportal_schemes import UpdateUser,UpdateUserResponse, RegisterRedirectUri, RedirectUriReponse, RegisterServiceRequset
 from .register_service._show_service import show_service
 from custom_log import LoggerSetup
 
@@ -88,14 +88,14 @@ def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
     return process_logout(response, token)
 
 # User Information Modifying
-@devportal_router.post("/v1/modify")
+@devportal_router.post("/v1/modify", response_model=UpdateUserResponse)
 def modify_user(_updateUser:UpdateUser, 
                 db:Session=Depends(get_db), 
                 current_user=Depends(current_user_info)):
     '''
     - Devportal에서 User Info 수정 Endpoint
     '''
-    return process_modify_user(_updateUser, db, current_user)
+    return process_modify_user(_updateUser, db, current_user["uid"])
 
 # Devportal에서 User의 Service 등록 API    
 @devportal_router.post("/v1/register-service")
@@ -107,13 +107,18 @@ def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db
     return result
 
 @devportal_router.get("/v1/services/")
-def services(db:Session=Depends(get_db),current_user=Depends(current_user_info)):
+def services(db:Session=Depends(get_db),current_user:dict=Depends(current_user_info)):
     '''
     - 등록된 Service Infomation List Up Endpoint
     '''
-    user_name = current_user["user_name"]
-    
-    return show_service(db, current_user)
+    try:
+        print(f"current_user_info: {type(current_user)}")
+        print(f"services api current_user: {current_user['uid']}")
+        return show_service(db, current_user["uid"])
+    except Exception as e:
+        logger.error(f"Error occurred: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Internal server error")
 
 # Devportal에서 User의 Service Redirect Uri 등록 API
 @devportal_router.post("/v1/redirect-uris")
@@ -130,11 +135,12 @@ def register_redirect_uris(data : RegisterRedirectUri,
 
 # Devportal에서 User가 등록한 개별 Serivce에 대한 Redirect Uri Showing API
 @devportal_router.get("/v1/redirect_uris", response_model=RedirectUriReponse)
-def get_redirect_uris(service_name : str=Query(..., description="Service Name to fetch redirect URIs"),
-                              db:Session=Depends(get_db),
-                              current_user:dict=Depends(current_user_info)):
+def get_redirect_uris(idx : str=Query(..., description="Service Index"),
+                    client_id : Optional[str]=Query(None, description="Client ID to fetch redirect URIs"),
+                    db:Session=Depends(get_db),
+                    current_user:dict=Depends(current_user_info)):
     
-    return get_service_redirect_uri(service_name, db, current_user)
+    return get_service_redirect_uri(idx, client_id, db, current_user)
     
 # Devportal에서 User가 등록한 개별 Service에 대한 Service 삭제 API
 @devportal_router.delete("/v1/service/{client_id}")

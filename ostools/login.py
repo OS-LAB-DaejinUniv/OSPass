@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from datetime import datetime
-
+from datetime import timedelta
 from conn_postgre import get_db
 from models import Users, APP_Refresh_Tokens
 from .token_handler import Token_Handler
@@ -38,23 +38,27 @@ def process_ostools_login(response : Response, db:Session, login_form:LoginForm=
                             detail="Invalid User ID or Password")
     
     # access token 생성
-    access_token = token_handler.app_create_access_token(data={"sub" : user.user_id})
+    access_token = token_handler.app_create_access_token(data={"sub" : user.uid})
     # refresh token 생성
-    refresh_token = token_handler.app_create_refresh_token(data={"sub" : user.user_id})
+    refresh_token = token_handler.app_create_refresh_token(data={"sub" : user.uid})
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True, 
+    response.set_cookie(key="access_token", 
+                        value=access_token, 
+                        httponly=True, 
+                        secure=True)
+    response.set_cookie(key="refresh_token",
+                        value=refresh_token,
+                        httponly=True,
                         secure=True)
     
-    # Refresh Token 저장
-    new_refresh_token = APP_Refresh_Tokens(user_id=user.user_id, token=refresh_token)
-    
+    # Refresh Token 저장 (만료 시간 명시)
+    expires_at = datetime.now() + timedelta(days=30)
+    new_refresh_token = APP_Refresh_Tokens(user_id=user.user_id, token=refresh_token, expires_at=expires_at)
     db.add(new_refresh_token)
     db.commit()
     
     return {
-        "status" : status.HTTP_200_OK,
         "access_token" : access_token,
-        "refresh_token" : refresh_token,
         "token_type" : "bearer",
         "message" : "Login Success"
     }
@@ -130,17 +134,22 @@ async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = D
     '''
     try:
         data = token_handler.app_verify_token(token)
-        user_id: str = data.get("sub")
-        
-        if user_id is None:
+        _uid: str = data.get("sub")
+        if _uid is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid Token payload"
             )
-        
+        # 사용자 정보 조회(user_id)
+        user = db.query(Users).filter(Users.uid == _uid).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User Not Found"
+            )
         # 로그아웃 상태 확인
         refresh_token = db.query(APP_Refresh_Tokens).filter(
-            APP_Refresh_Tokens.user_id == user_id,
+            APP_Refresh_Tokens.user_id == user.user_id,
             APP_Refresh_Tokens.expires_at > datetime.now()
         ).first()
         
@@ -150,14 +159,17 @@ async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = D
                 detail="User is logged out"
             )
         
-        return user_id
+        return {
+            "user_id" : user.user_id,
+            "uid" : _uid,
+            "user_name" : user.user_name
+        }
         
     except JWTError as je:
         logger.error(f'JWT ERROR:{str(je)}')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Token"
-        )
+            detail="Invalid Token")
     except HTTPException as he:
         logger.error(f'Get Current User Info Error Occured:{str(he)}')
         raise he

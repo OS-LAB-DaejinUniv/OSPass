@@ -9,6 +9,7 @@ from models import Users
 from .register import verify_password
 from ostools.token_handler import Token_Handler
 from database import redis_config
+from conn_postgre import get_db
 from custom_log import LoggerSetup
 import datetime
 
@@ -157,8 +158,7 @@ def issued_refresh_token(request : Request):
         headers={"WWW-Authenticate" : "Bearer"})
     
 # Current User Info 
-# user_id, user_name 조회
-def current_user_info(token: str=Depends(oauth2_scheme)):
+def current_user_info(db:Session=Depends(get_db), token: str=Depends(oauth2_scheme))->dict:
     '''
     로그인한 현재 사용자 정보(id,name 조회 가능)
     '''
@@ -181,7 +181,7 @@ def current_user_info(token: str=Depends(oauth2_scheme)):
         return {
             "status" : status.HTTP_200_OK,
             "uid" : _uid,
-            "user_name" : user_name
+            "user_name" : user_name,
         }
     except JWTError as e:
         logger.error(f'JWT ERROR: {str(e)}')

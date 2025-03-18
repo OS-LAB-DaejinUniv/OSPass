@@ -15,14 +15,14 @@ def process_delete_user(db:Session, current_user:dict):
     '''
     try:
         # 현재 사용자 정보 가져오기
-        current_user = current_user.get("uid")
+        current_user = current_user['uid']
         
         # 사용자 정보가 없는 경우
         if not current_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail="User Not Found")
                     
-        user_info = db.query(Users).filter(Users.user_id == current_user).first()
+        user_info = db.query(Users).filter(Users.uid == current_user).first()
         
         # 사용자 정보 삭제
         db.delete(user_info)

@@ -4,7 +4,7 @@ Devportal에서 User가 Service Name 등록
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from ..user.login import current_user_info # 현재 user info 확인
-from models import API_Key
+from models import API_Key, Users
 from custom_log import LoggerSetup
 import string
 import random
@@ -45,6 +45,11 @@ def process_register_service(register_service_name:str, db:Session,
     # API KEY 생성 함수 호출
     api_key = gen_api_key()
     
+    # User Table에서 user_id 추출
+    user = db.query(Users).filter(Users.uid == _uid).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"User Not Found for user:{_uid}")
     # 기존 API_Key 테이블 데이터 존재 여부
     existing_api_key = db.query(API_Key).filter(API_Key.uid == _uid).first()
     
@@ -63,7 +68,7 @@ def process_register_service(register_service_name:str, db:Session,
         # 새 데이터 생성
         new_service = API_Key(
             uid = _uid,
-            user_id=existing_api_key.user_id,
+            user_id=user.user_id,
             registered_service={
                 client_id:{
                     "service_name":register_service_name,
