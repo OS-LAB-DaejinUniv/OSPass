@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from models import API_Key, Users
+from models import API_Key
 
 from ..user.login import current_user_info
 
@@ -8,20 +8,22 @@ from custom_log import LoggerSetup
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
-def show_service(db:Session, current_user_uid:str):
+def show_service(db:Session, current_user=Depends(current_user_info)):
     '''
     사용자가 등록한 Service에 대한 정보를 보여주는 함수
     :return service_list (service name, client_id, apikey)
     '''
-    user = db.query(Users).filter(Users.uid == current_user_uid).first() # User Table Row 추출 -> user_id 추출하고 싶음
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"User Not Found for user:{current_user_uid}")
+    
+    _uid = current_user["uid"]
+    if not _uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid User")
     # API_Key Table Row 추출
-    row_api_key = db.query(API_Key).filter(API_Key.uid == current_user_uid).first()
-    if not row_api_key:
-        # 등록된 서비스가 없는 경우 빈 배열 반환
-        return {"services": []}
+    row_api_key = db.query(API_Key).filter(API_Key.uid == _uid).first()
+    user_id = row_api_key.user_id
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Result Not Found for user:{user_id} ")
     # registered_service 컬럼(JSONB 데이터) 파싱
     try:
         service_data = row_api_key.registered_service # JSONB 타입 필드 접근

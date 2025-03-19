@@ -13,13 +13,17 @@ def process_register_uuid(user_uuid:str, current_user:str, db:Session):
     '''
     try:
         
-        current_user = current_user["uid"]
-        print(f"current_user: {current_user}")
-        users_record = db.query(Users).filter(Users.uid == current_user).first()
+        current_user = current_user
+        
+        users_record = db.query(Users).filter(Users.user_id == current_user).first()
         
         if not users_record:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid User")
+        
+        # if users_record.user_uuid:
+        #     raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+        #                         detail="Alreay Existing UUID in Users Table")
         
         users_record.user_uuid = user_uuid
         db.commit()

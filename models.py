@@ -28,7 +28,7 @@ class Users(Base):
     user_uuid = Column(String, nullable=True, unique=True)
     
     # Users와 API_Key 테이블 간 관계 설정
-    apikey = relationship("API_Key", back_populates="user", foreign_keys="API_Key.uid", cascade="all, delete-orphan")
+    apikey = relationship("API_Key", back_populates="user", foreign_keys="API_Key.uid")
     
     # Users와 APP_Refresh_Tokens 테이블 간 관계 설정
     app_refresh_tokens = relationship("APP_Refresh_Tokens", back_populates="user")

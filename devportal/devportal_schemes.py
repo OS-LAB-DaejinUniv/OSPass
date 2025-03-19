@@ -51,10 +51,3 @@ class UpdateUser(BaseModel):
                 raise ValueError("user_name : cannot contain only consonants (must have vowels)")
         
         return value
-    
-    class Config:
-        from_attributes = True
-    
-class UpdateUserResponse(BaseModel):
-    message : str
-    update_data : dict

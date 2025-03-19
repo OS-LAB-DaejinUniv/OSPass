@@ -3,7 +3,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from typing import Optional
+
 from models import API_Key
 from custom_log import LoggerSetup
 from ..devportal_schemes import RegisterRedirectUri
@@ -81,48 +81,42 @@ def process_register_redirect_uri(data : RegisterRedirectUri,
         "redirect_uris" : api_key_record.registered_service[data.client_id]["redirect_uri"]
     }
 
-def get_service_redirect_uri(idx: int, 
-                             client_id: Optional[str], 
-                             db: Session, 
-                             current_user: dict):
+# 작성한 redirect uri 가져오기
+def get_service_redirect_uri(service_name:str, db:Session, current_user : dict):
     '''
-    - Redirect URI Show(조회)
-    - 현재 사용자 uid를 register_service(JSONB)에 매핑
+    - Redirect URI Select
+    - Service Name과과 매핑된 redirect_uri를 보여줌
     '''
     _uid = current_user["uid"]
-    
-    # API Key 레코드 조회 (UID + Index)
-    api_key_record = db.query(API_Key).filter(
-        API_Key.uid == _uid,
-        API_Key.idx == idx
-    ).first()
+    # apikey table user_id 기준 row
+    api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).first()
     
     if not api_key_record:
-        raise HTTPException(404, "API Key not found")
+        logger.error(f'Is Not {api_key_record.user_id}')
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="User Not Found")
     
-    registered_services = api_key_record.registered_service or {}
+    # 등록된 서비스 JSON 불러오기
+    registered_services = api_key_record.registered_service
     
-    # Client ID 필터링
-    if client_id:
-        service_info = registered_services.get(client_id)
-        if not service_info:
-            raise HTTPException(404, "Client ID not found")
-        
-        return {
-            "idx": idx,
-            "client_id": client_id,
-            "service_name": service_info.get("service_name"),
-            "redirect_uris": service_info.get("redirect_uri", [])
-        }
+    # service_name에 해당하는 client_id 찾기
+    # cid : client_id, service_info : registered_service value
+    client_id = None
+    for cid, service_info in registered_services.items():
+        if service_info.get("service_name") == service_name:
+            client_id = cid
+            break
     
-    # 전체 서비스 반환
+    if not client_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Service {service_name} not found")
+    
+    redirect_uris = registered_services[client_id].get("redirect_uri", [])
+    
     return {
-        "idx": idx,
-        "services": {
-            cid: {
-                "service_name": info.get("service_name"),
-                "redirect_uris": info.get("redirect_uri", [])
-            } for cid, info in registered_services.items()
-        }
+        "service_name" : service_name,
+        "client_id" : client_id,
+        "redirect_uris" : redirect_uris
     }
+    
     

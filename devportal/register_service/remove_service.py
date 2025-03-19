@@ -16,44 +16,37 @@ def process_remove_service(client_id:str, db:Session, current_user=Depends(curre
     '''
     try:
         _uid = current_user["uid"]
-        api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).all()
+        api_key_record = db.query(API_Key).filter(API_Key.uid == _uid).first()
         
         if not api_key_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No registered services found")
         
-        service_removed = False
-        removed_service_info = {}
-        # 2. 모든 API Key 순회
-        for api_key in api_key_record:
-            registered_services = api_key.registered_service or {}
-            
-            if client_id in registered_services:
-                # 3. 서비스 정보 추출 후 삭제
-                service_info = registered_services[client_id]
-                del registered_services[client_id]
-                
-                # 4. 변경 사항 저장
-                api_key.registered_service = registered_services
-                db.commit()
-                
-                removed_service_info = {
-                    "client_id": client_id,
-                    "service_name": service_info.get("service_name"),
-                    "idx": api_key.idx
-                }
-                print(f"Service removed: {removed_service_info}")
-                service_removed = True
-                break  # 첫 번째 발견된 서비스 삭제 후 종료
-
-        if not service_removed:
-                raise HTTPException(404, f"Service {client_id} not found in any API keys")
-            
+        registered_service = api_key_record.registered_service
+        
+        # client_id가 존재하는지 확인
+        if client_id not in registered_service:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Service not found")
+        
+        # 서비스 정보 삭제
+        # JSON Type: Key값 삭제
+        service_name = registered_service[client_id]["service_name"]
+        del registered_service[client_id]
+        
+        api_key_record.registered_service = registered_service
+        db.commit()
+        
         return {
-                "message": "Service removed successfully",
-                "removed_service": removed_service_info
-                }
+            "message" : "Service removed Successfully",
+            "removed_service" : {
+                "client_id" : client_id,
+                "service_name" : service_name
+            }
+        }
+        
     except HTTPException as he:
         raise he
     except Exception as e:
