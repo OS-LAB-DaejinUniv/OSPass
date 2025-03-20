@@ -2,8 +2,7 @@ from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-from models import Users
-from .login import current_user_info
+from common.models.models import Users
 from ..devportal_schemes import UpdateUser
 from custom_log import LoggerSetup
 

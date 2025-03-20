@@ -4,11 +4,11 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from typing import Optional
-from schemes import LoginForm
-from models import Users
-from .register import verify_password
+from devportal.devportal_schemes import LoginForm
+from common.models.models import Users
+from devportal.user.register import verify_password
 from ostools.token_handler import Token_Handler
-from database import redis_config
+from common.database.database import redis_config
 from custom_log import LoggerSetup
 import datetime
 

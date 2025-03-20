@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from typing import Optional
-from models import API_Key
+from common.models.models import API_Key
 from custom_log import LoggerSetup
 from ..devportal_schemes import RegisterRedirectUri
 
@@ -89,40 +89,44 @@ def get_service_redirect_uri(idx: int,
     - Redirect URI Show(조회)
     - 현재 사용자 uid를 register_service(JSONB)에 매핑
     '''
-    _uid = current_user["uid"]
-    
-    # API Key 레코드 조회 (UID + Index)
-    api_key_record = db.query(API_Key).filter(
-        API_Key.uid == _uid,
-        API_Key.idx == idx
-    ).first()
-    
-    if not api_key_record:
-        raise HTTPException(404, "API Key not found")
-    
-    registered_services = api_key_record.registered_service or {}
-    
-    # Client ID 필터링
-    if client_id:
-        service_info = registered_services.get(client_id)
-        if not service_info:
-            raise HTTPException(404, "Client ID not found")
+    try:
+        _uid = current_user["uid"]
         
+        # API Key 레코드 조회 (UID + Idx)
+        api_key_record = db.query(API_Key).filter(
+            API_Key.uid == _uid,
+            API_Key.idx == idx
+        ).first()
+        
+        if not api_key_record:
+            raise HTTPException(404, "API Key not found")
+        
+        registered_services = api_key_record.registered_service or {}
+        
+        # Client ID 필터링
+        if client_id:
+            service_info = registered_services.get(client_id)
+            if not service_info:
+                raise HTTPException(404, "Client ID not found")
+            
+            return {
+                "idx": idx,
+                "client_id": client_id,
+                "service_name": service_info['service_name'],
+                "redirect_uris": service_info.get("redirect_uri", [])
+            }
+        
+        # 전체 서비스 반환
         return {
             "idx": idx,
-            "client_id": client_id,
-            "service_name": service_info.get("service_name"),
-            "redirect_uris": service_info.get("redirect_uri", [])
+            "services": {
+                cid: {
+                    "service_name": info['service_name'],
+                    "redirect_uris": info.get("redirect_uri", [])
+                } for cid, info in registered_services.items()
+            }
         }
-    
-    # 전체 서비스 반환
-    return {
-        "idx": idx,
-        "services": {
-            cid: {
-                "service_name": info.get("service_name"),
-                "redirect_uris": info.get("redirect_uri", [])
-            } for cid, info in registered_services.items()
-        }
-    }
+    except Exception as e:
+        HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                      detail=f"Error Occured while Getting Redirect URIS List: {str(e)}")
     

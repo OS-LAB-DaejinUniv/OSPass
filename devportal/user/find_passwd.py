@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 from ..devportal_schemes import ResetPasswordRequestID
-from models import Users
+from common.models.models import Users
 from custom_log import LoggerSetup
 from passlib.context import CryptContext
 import httpx

@@ -1,20 +1,22 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
 from fastapi.security import OAuth2PasswordBearer
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-from conn_postgre import get_db
+from common.database.conn_postgre import get_db
 from schemes import JoinUser, LoginForm
-from .user.register import register_user
-from .user.login import process_login, issued_refresh_token, current_user_info, process_logout
-from .user.find_passwd import process_reset_user_password
-from .user.delete_user import process_delete_user
-from .user.modify_user import process_modify_user
-from .register_service.service_name import process_register_service
-from .register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
-from .register_service.remove_service import process_remove_service
-from .devportal_schemes import UpdateUser, RegisterRedirectUri, RedirectUriReponse, RegisterServiceRequset
-from .register_service._show_service import show_service
+from devportal.user.register import register_user
+from devportal.user.login import process_login, issued_refresh_token, current_user_info, process_logout
+from devportal.user.find_passwd import process_reset_user_password
+from devportal.user.delete_user import process_delete_user
+from devportal.user.modify_user import process_modify_user
+from devportal.register_service.service_name import process_register_service
+from devportal.register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
+from devportal.register_service.remove_service import process_remove_service
+from devportal.devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
+from devportal.register_service._show_service import show_service
 from custom_log import LoggerSetup
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
@@ -129,12 +131,13 @@ def register_redirect_uris(data : RegisterRedirectUri,
     return result
 
 # Devportal에서 User가 등록한 개별 Serivce에 대한 Redirect Uri Showing API
-@devportal_router.get("/v1/redirect_uris", response_model=RedirectUriReponse)
-def get_redirect_uris(service_name : str=Query(..., description="Service Name to fetch redirect URIs"),
-                              db:Session=Depends(get_db),
-                              current_user:dict=Depends(current_user_info)):
+@devportal_router.get("/v1/redirect_uris", response_model=RedirectUriResponse)
+def get_redirect_uris(idx: int=Query(...,description="API_KEY Idx"),
+                        client_id:Optional[str]=Query(None, description="Filter by client ID"), # 선택적
+                        db:Session=Depends(get_db),
+                        current_user:dict=Depends(current_user_info)):
     
-    return get_service_redirect_uri(service_name, db, current_user)
+    return get_service_redirect_uri(idx, client_id, db, current_user)
     
 # Devportal에서 User가 등록한 개별 Service에 대한 Service 삭제 API
 @devportal_router.delete("/v1/service/{client_id}")
