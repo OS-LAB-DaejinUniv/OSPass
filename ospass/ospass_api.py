@@ -9,9 +9,9 @@ import uuid
 import json
 
 from schemes import Card_Data, SessionKey
-from models import Users, API_Key
-from conn_postgre import get_db
-from database import redis_config
+from common.models.models import Users, API_Key
+from common.database.conn_postgre import get_db
+from common.database.database import redis_config
 from custom_log import LoggerSetup
 from .service.auth import process_verify_card_response
 from .service.token import Oauth_Token

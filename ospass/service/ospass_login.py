@@ -5,7 +5,7 @@ import httpx
 from dotenv import load_dotenv
 from ..schemes import InitLoginRequest
 from .auth import get_or_issue_challenge
-from models import Users, API_Key
+from common.models.models import Users, API_Key
 from custom_log import LoggerSetup
 
 load_dotenv()

@@ -12,3 +12,6 @@ __pycache__
 
 ### OSPASS LOGIN UI (아직 미완성)
 ospass-frontend/
+
+## 
+docker-compose.yml

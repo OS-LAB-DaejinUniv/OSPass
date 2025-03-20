@@ -5,11 +5,10 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import random
 
-from challenge import gen_challenge
 from schemes import User, Card_Data, SessionKey, Token
-from models import Users, API_Key
-from database import redis_config
-from decrypt import decrypt_pp
+from common.models.models import Users, API_Key
+from common.database.database import redis_config
+from .decrypt import decrypt_pp
 from custom_log import LoggerSetup
 from .token import Oauth_Token 
 import const

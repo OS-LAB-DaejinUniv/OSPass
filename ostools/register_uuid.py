@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from models import Users
+from common.models.models import Users
 from custom_log import LoggerSetup
 
 logger_setup = LoggerSetup()

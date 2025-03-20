@@ -10,8 +10,7 @@ from devportal.devportal_api import devportal_router
 from ospass.ospass_api import ospass_router
 from custom_log import LoggerSetup
 
-from models import API_Key
-from conn_postgre import get_db
+from common.models.models import API_Key
 
 app = FastAPI()
 security = HTTPBasic()

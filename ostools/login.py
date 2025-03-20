@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 from datetime import datetime
 from datetime import timedelta
-from conn_postgre import get_db
-from models import Users, APP_Refresh_Tokens
+from common.database.conn_postgre import get_db
+from common.models.models import Users, APP_Refresh_Tokens
 from .token_handler import Token_Handler
 from devportal.user.register import verify_password
 from schemes import LoginForm
