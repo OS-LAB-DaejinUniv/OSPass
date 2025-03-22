@@ -2,9 +2,10 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 import httpx
+import os
 from dotenv import load_dotenv
-from ..schemes import InitLoginRequest
-from .auth import get_or_issue_challenge
+from schemes import InitLoginRequest
+from service.auth import get_or_issue_challenge
 from common.models.models import Users, API_Key
 from custom_log import LoggerSetup
 
@@ -21,8 +22,8 @@ def push_server_communication(client_id:str,
     '''
     Push Server 통신 함수
     '''
-    # url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
-    url = "http://api.oslab:7999/post"
+    url = str(os.getenv("PUSH_SERVER_URL")) # Push Server URL
+    print(f"Push Server URL: {url}")
     headers = {
         "Content-Type": "application/json",
         "Accept" : "application/json"

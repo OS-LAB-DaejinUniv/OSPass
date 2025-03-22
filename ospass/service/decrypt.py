@@ -1,6 +1,9 @@
 import os
 import binascii
 from Crypto.Cipher import AES
+from dotenv import load_dotenv
+
+load_dotenv()
 
 secret = binascii.unhexlify(os.getenv("OSLABID_SECRET"))
 iv = binascii.unhexlify(os.getenv("OSLABID_IV"))
