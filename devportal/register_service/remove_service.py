@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
-from ..user.login import current_user_info
+from user.login import current_user_info
 from common.models.models import API_Key
 from custom_log import LoggerSetup
 

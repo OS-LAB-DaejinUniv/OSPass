@@ -6,17 +6,17 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
 from common.database.conn_postgre import get_db
-from schemes import JoinUser, LoginForm
-from devportal.user.register import register_user
-from devportal.user.login import process_login, issued_refresh_token, current_user_info, process_logout
-from devportal.user.find_passwd import process_reset_user_password
-from devportal.user.delete_user import process_delete_user
-from devportal.user.modify_user import process_modify_user
-from devportal.register_service.service_name import process_register_service
-from devportal.register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
-from devportal.register_service.remove_service import process_remove_service
-from devportal.devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
-from devportal.register_service._show_service import show_service
+from devportal_schemes import JoinUser, LoginForm
+from user.register import register_user
+from user.login import process_login, issued_refresh_token, current_user_info, process_logout
+from user.find_passwd import process_reset_user_password
+from user.delete_user import process_delete_user
+from user.modify_user import process_modify_user
+from register_service.service_name import process_register_service
+from register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
+from register_service.remove_service import process_remove_service
+from devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
+from register_service._show_service import show_service
 from custom_log import LoggerSetup
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])

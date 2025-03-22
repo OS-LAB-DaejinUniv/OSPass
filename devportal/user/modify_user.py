@@ -1,9 +1,9 @@
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
 from common.models.models import Users
-from ..devportal_schemes import UpdateUser
+from devportal_schemes import UpdateUser
 from custom_log import LoggerSetup
 
 logger_setup = LoggerSetup()
@@ -24,7 +24,7 @@ def process_modify_user(_updateUser: UpdateUser, db:Session, current_user:dict):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid User")
             
-        user = db.query(Users).filter(Users.user_id == current_user).first()
+        user = db.query(Users).filter(Users.uid == current_user).first()
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail="User Not Found")

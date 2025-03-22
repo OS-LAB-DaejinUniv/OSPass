@@ -22,7 +22,8 @@ async def request_log(request: Request, call_next):
     '''
     요청 로깅을 처리하는 미들웨어
     '''
-    client_ip = request.headers.get("x-forwarded-for") # 실제 IP 받아오기
+    # 실제 IP 가져오기
+    client_ip = request.headers.get("x-forwarded-for")
     if client_ip:
         client_ip = client_ip.split(",")[0].strip()
     else:
@@ -37,3 +38,6 @@ async def main():
     return {"message": "Devportal from OS-LAB"}
 
 app.include_router(devportal_router)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8001)

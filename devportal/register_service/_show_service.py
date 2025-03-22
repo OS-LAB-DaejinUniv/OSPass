@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from common.models.models import API_Key, Users
 from custom_log import LoggerSetup

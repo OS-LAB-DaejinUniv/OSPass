@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
-from ..devportal_schemes import ResetPasswordRequestID
 from common.models.models import Users
 from custom_log import LoggerSetup
 from passlib.context import CryptContext
@@ -75,7 +74,8 @@ def process_reset_user_password(user_id:str, db:Session):
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Invalid User ID")
-        
+    # 사용자 이름 조회
+    name = user.user_name
     # 사용자 ID로 사용자 정보 조회(전화번호 SELECT)
     user_phone_number = db.query(Users.phone_num).filter(Users.user_id == user_id).first()
     if not user_phone_number:
@@ -96,7 +96,7 @@ def process_reset_user_password(user_id:str, db:Session):
         db.refresh(user)
         
         # SMS 전송
-        content = f"비밀번호를 잊어버리셨다구요? 여기 새로운 비밀번호에요: {choice_random_passwd}"
+        content = f"[DEVPORTAL] {name}님 임시 비밀번호는 {choice_random_passwd} 입니다. 로그인 후 변경하시기 바랍니다."
         send_sms(user_phone_number, content)
         
     except Exception as e:

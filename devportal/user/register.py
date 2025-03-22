@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from common.models.models import Users
-from devportal.devportal_schemes import JoinUser
+from devportal_schemes import JoinUser
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from custom_log import LoggerSetup
