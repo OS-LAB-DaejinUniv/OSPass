@@ -2,14 +2,13 @@ from fastapi import HTTPException, status, Depends, Response
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
+from passlib.context import CryptContext
 from common.database.conn_postgre import get_db
 from common.models.models import Users, APP_Refresh_Tokens
-from .token_handler import Token_Handler
-from devportal.user.register import verify_password
+from common.token.token_handler import Token_Handler
 from schemes import LoginForm
-from ospass.service.decrypt import decrypt_pp
+# from ..ospass.service.decrypt import decrypt_pp
 from custom_log import LoggerSetup
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -19,6 +18,11 @@ token_handler = Token_Handler() # JWT 관련 클래스 객체 생성
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
+# bcrypt context 초기화
+bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def verify_password(plain_password : str, hashed_password : str) -> bool:
+    return bcrypt_context.verify(plain_password, hashed_password)
 
 def process_ostools_login(response : Response, db:Session, login_form:LoginForm=Depends()):
     '''
@@ -103,29 +107,29 @@ def process_ostools_logout(response : Response, refresh_token : str, db:Session)
         "message" : "Logout Success"
     }
 
-def login(data : str, db : Session = Depends(get_db)):
-    '''
-    Card Login Function
-    일반 로그인(아이디, 비번) -> 카드 로그인으로 변경 가능
-    '''
-    decrypted = decrypt_pp(data)
-    decrypted_uuid = decrypted.get("card_uuid") # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
+# def login(data : str, db : Session = Depends(get_db)):
+#     '''
+#     Card Login Function
+#     일반 로그인(아이디, 비번) -> 카드 로그인으로 변경 가능
+#     '''
+#     decrypted = decrypt_pp(data)
+#     decrypted_uuid = decrypted.get("card_uuid") # 카드에 담겨있는 데이터 복호화 후 UUID 슬라이싱
      
-    member_ssid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first() # DB의 사용자 UUID와 복호화 된 UUID 검증
+#     member_ssid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first() # DB의 사용자 UUID와 복호화 된 UUID 검증
     
-    if member_ssid is None: 
-        raise HTTPException(status_code=404,
-                            detail="해당 UUID가 존재하지 않음")
+#     if member_ssid is None: 
+#         raise HTTPException(status_code=404,
+#                             detail="해당 UUID가 존재하지 않음")
         
-    access_token = token_handler.app_create_access_token(data={"sub" : member_ssid.user_id}) # access token 생성
-    refresh_token = token_handler.app_create_refresh_token(data={"sub" : member_ssid.user_id}) # refresh token 생성
-    return {
-        "status" : status.HTTP_200_OK,
-        "access_token" : access_token,
-        "refresh_token" : refresh_token,
-        "token_type" : "bearer",
-        "message" : "Login Success"
-    }
+#     access_token = token_handler.app_create_access_token(data={"sub" : member_ssid.user_id}) # access token 생성
+#     refresh_token = token_handler.app_create_refresh_token(data={"sub" : member_ssid.user_id}) # refresh token 생성
+#     return {
+#         "status" : status.HTTP_200_OK,
+#         "access_token" : access_token,
+#         "refresh_token" : refresh_token,
+#         "token_type" : "bearer",
+#         "message" : "Login Success"
+#     }
 
 # Current User Info
 async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):

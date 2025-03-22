@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from common.database.conn_postgre import get_db
 from schemes import LoginForm
-from ostools.login import process_ostools_login, issued_refresh_token, process_ostools_logout, current_user_info
-from ostools.register_uuid import process_register_uuid
+from login import process_ostools_login, issued_refresh_token, process_ostools_logout, current_user_info
+from register_uuid import process_register_uuid
 
 ostools_router = APIRouter(prefix="/api", tags=["ostools"])
 
