@@ -1,8 +1,8 @@
-from fastapi import HTTPException, status, Depends, Response
+from fastapi import HTTPException, status, Depends, Response, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from common.database.conn_postgre import get_db
 from common.models.models import Users, APP_Refresh_Tokens
@@ -56,7 +56,7 @@ def process_ostools_login(response : Response, db:Session, login_form:LoginForm=
                         secure=True)
     
     # Refresh Token 저장 (만료 시간 명시)
-    expires_at = datetime.now() + timedelta(days=30)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     new_refresh_token = APP_Refresh_Tokens(user_id=user.user_id, token=refresh_token, expires_at=expires_at)
     db.add(new_refresh_token)
     db.commit()
@@ -67,12 +67,13 @@ def process_ostools_login(response : Response, db:Session, login_form:LoginForm=
         "message" : "Login Success"
     }
 
-def issued_refresh_token(refresh_token:str, db:Session):
+def issued_refresh_token(request : Request, db:Session):
     '''
     Refresh Token 발급 
     DB에서 Refresh Token 관리 및 검증
     :param refresh_token : refresh token
     '''
+    refresh_token = request.cookies.get("refresh_token")
     payload = token_handler.app_verify_token(refresh_token, is_refresh=True)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,28 +81,32 @@ def issued_refresh_token(refresh_token:str, db:Session):
     
     # DB에서 Refresh Token 확인
     stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == refresh_token).first()
-    if not stored_refresh_token or stored_refresh_token.expires_at < datetime.now():
+    if not stored_refresh_token or stored_refresh_token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Refresh Token Not Found or Expired")
         
-    # 새로운 Access Token 발급 : paylaod["sub"] -> user_id
+    # 새로운 Access Token 발급 : paylaod["sub"] -> uid
     new_access_token = token_handler.app_create_access_token(data={"sub":payload["sub"]})
     return {
         "access_token" : new_access_token,
         "token_type" : "bearer"
     }
 
-def process_ostools_logout(response : Response, refresh_token : str, db:Session):
+def process_ostools_logout(request : Request,
+                           response : Response, 
+                           db:Session):
     '''
     DB에 저장된 Refresh Token 삭제
     :param refresh_token : refresh token
     '''
+    refresh_token = request.cookies.get("refresh_token")
     # DB에 저장된 Refresh Token
     stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == refresh_token).first()
     if stored_refresh_token:
         db.delete(stored_refresh_token)
         db.commit()
     response.delete_cookie(key="access_token")
+    response.delete_cookie(key="refresh_token")
     return {
         "status" : status.HTTP_200_OK,
         "message" : "Logout Success"

@@ -7,15 +7,15 @@ from custom_log import LoggerSetup
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
 
-def process_register_uuid(user_uuid:str, current_user:str, db:Session):
+def process_register_uuid(user_uuid:str, current_user:dict, db:Session):
     '''
     OStools에서 사용자 카드에 담겨있는 UUID를 Users 테이블에 저장
     '''
     try:
         
-        current_user = current_user
-        
-        users_record = db.query(Users).filter(Users.user_id == current_user).first()
+        user_id = current_user['user_id']
+        print(f"user id : {current_user}")
+        users_record = db.query(Users).filter(Users.user_id == user_id).first()
         
         if not users_record:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
