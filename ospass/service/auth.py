@@ -9,7 +9,6 @@ from common.database.database import redis_config
 from service.decrypt import decrypt_pp
 from custom_log import LoggerSetup
 from service.token import Oauth_Token 
-import const
 
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
@@ -40,40 +39,56 @@ def get_or_issue_challenge(client_id : str):
     ch = random.getrandbits(128)
     challenge = hex(ch)[2:].zfill(32)
     # key : user_session , value : value_challenge
-    rd.setex(client_id, const.EXPIRE_KEY, challenge)
+    rd.setex(client_id, 300, challenge)
     print(f'[get_or_issue_challenge] Issued {client_id}->{challenge}')
     return challenge
 
 # Usage:  Card Response 검증 
 # data: 카드에 담겨온 데이터
-# user_session: 사용자 세션 ID
-def process_verify_card_response(data:Card_Data, client_id:str, db: Session):
-    # Data 복호화
-    decrypted = decrypt_pp(data)
-    decrypted_uuid = decrypted.get("card_uuid")
-    decrypted_response = decrypted.get("response")
-    print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
+# client_
+def process_verify_card_response(data:Card_Data, client_id : str, db: Session):
+    """
+    Card Response 검증 
+    data: 카드에 담겨온 데이터
+    client_id : 등록된 서비스 고유 식별 ID
+    """
+    try:
+        # Data 복호화
+        decrypted = decrypt_pp(data.card_data)
+        decrypted_uuid = decrypted.get("card_uuid")
+        decrypted_response = decrypted.get("response")
+        print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
     
-    # Redis에서 챌린지 return 값
-    stored_challenge = get_or_issue_challenge(client_id).decode().upper()
-    if not stored_challenge:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                            detail="Session not found or expired")
-    print(f"Challenge in Redis : {stored_challenge}, Response : {decrypted_response}")
+        # Redis에서 챌린지 return 값
+        challenge_value = get_or_issue_challenge(client_id)
+        if isinstance(challenge_value, bytes):
+            stored_challenge = challenge_value.decode().upper()
+        else:
+            stored_challenge = challenge_value.upper()
+        
+        if not stored_challenge:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                                detail="Session not found or expired")
+        print(f"Challenge in Redis : {stored_challenge}, Response : {decrypted_response}")
     
-    # STEP 1 : Challenge 값 검증
-    if stored_challenge != decrypted_response:
-        print("Challenge match : Incorrect")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Invalid Response")
-    print("Challenge match: Correct")
+        # STEP 1 : Challenge 값 검증
+        if stored_challenge != decrypted_response:
+            print("Challenge match : Incorrect")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Invalid Response")
+        print("Challenge match: Correct")
+        
+        # STEP 2 : Decrypt된 UUID와 DB에 저장된 UUID 비교 검증
+        member_uuid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first()
+        if not member_uuid:
+            logger.error(f"Member not found: {decrypted_uuid}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                                detail="Member not found")
+        return decrypted_uuid
     
-    # STEP 2 : Decrypt된 UUID와 DB에 저장된 UUID 비교 검증
-    member_uuid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first()
-    if not member_uuid:
-        logger.error(f"Member not found: {decrypted_uuid}")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                            detail="Member not found")
-    return decrypted_uuid
+    except Exception as e:
+        logger.error(f"Unexpected Error while Verifying Card Data: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=str(e))
 
     

@@ -18,7 +18,7 @@ logger = logger_setup.logger
 def push_server_communication(client_id:str, 
                               sliced_phone_num:str,
                               challenge:str, 
-                              user_id:str):
+                              uid:str):
     '''
     Push Server 통신 함수
     '''
@@ -32,7 +32,7 @@ def push_server_communication(client_id:str,
     data = {
         "message": "OSPASS Login Success",
         "phone_num" : str(sliced_phone_num),
-        "user_id" : str(user_id),
+        "uid" : str(uid),
         "client_id" : str(client_id),
         "challenge" : str(challenge),
         "status" : int(status.HTTP_200_OK)
@@ -124,7 +124,7 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
         push_result = push_server_communication(client_id, 
                                                 full_phone_num, 
                                                 challenge, 
-                                                user.user_id)
+                                                user.uid)
         
         if push_result.get("status") == "push_server_error":
             logger.error(f"Push Server Occured: {push_result.get('message')}")

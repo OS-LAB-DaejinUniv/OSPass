@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Form, Query
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 import uuid
 import json
 
-from schemes import Card_Data, SessionKey
+from schemes import Card_Data
 from common.models.models import Users, API_Key
 from common.database.conn_postgre import get_db
 from common.database.database import redis_config
@@ -50,14 +50,18 @@ def ospass_login(request : InitLoginRequest,
                             detail="Invalid Phone Number")
 
 @ospass_router.post("/v1/card-response")
-async def verify_card_response(data : Card_Data, user_session : SessionKey, 
-                               response : Response, db: Session = Depends(get_db)):
+async def verify_card_response(response : Response, 
+                               data : Card_Data, 
+                               client_id : str=Query(..., description="서비스 식별자"), 
+                               db: Session = Depends(get_db)):
     '''
     - OSTOOLS에서 호출될 API
     - QRcode -> Applink -> API 호출
     '''
     try:
-        decrypted_uuid = process_verify_card_response(data, user_session, db)
+        print(f"[DEBUG] Recieved Data:{data.model_dump()}")
+        print(f"[DEBUG] Client ID: {client_id}")
+        decrypted_uuid = process_verify_card_response(data, client_id, db)
         print(f"Decrypted MY-UUID: {decrypted_uuid}")
         # My-UUID(Card)와 DB에 저장된 UUID가 일치하는지 확인
         verify_result = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first()
@@ -80,10 +84,10 @@ async def verify_card_response(data : Card_Data, user_session : SessionKey,
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 @ospass_router.get("/v1/authorization")
-async def authorize(response_type : str = Query(...), # "code"로 고정
+async def authorize(request : Request,
+                    response_type : str = Query(...), # "code"로 고정
                     APIKEY : str = Query(...), 
-                    redirect_uri : str = Query(...),
-                    request : Request = Request, 
+                    redirect_uri : str = Query(...), 
                     db : Session = Depends(get_db)):
     '''
     - 인가코드 제공 API
@@ -111,6 +115,7 @@ async def authorize(response_type : str = Query(...), # "code"로 고정
         
         # STEP 3. Session ID 검증
         s_id = request.cookies.get("MySessionID")
+        print(f"Saved Cookie Data MYSessionID:{s_id}")
         if not s_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Unauthorized User")
@@ -137,7 +142,7 @@ async def authorize(response_type : str = Query(...), # "code"로 고정
         redirect_url = f"{redirect_uri}?{urlencode(query_params)}" # redirect_url 
         return RedirectResponse(
             url=redirect_url,
-            status_cdoe=status.HTTP_302_FOUND
+            status_code=status.HTTP_302_FOUND
         )
     
     except Exception as e:
@@ -246,7 +251,7 @@ def issued_refresh_token(grant_type:str=Form(...),
         try:
             payload = jwt.decode(
                 refresh_token,
-                token.REFRESH_TOKEN_EXPIRE_KEY,
+                token.REFRESH_SECRET_KEY,
                 algorithms=[token.ALGORITHM]
             )
             s_id = payload["sub"]

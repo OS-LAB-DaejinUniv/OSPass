@@ -10,6 +10,10 @@ class InitLoginRequest(BaseModel):
 class Card_Data(BaseModel):
     card_data : str 
 
+# client id Validation
+class Client_ID(BaseModel):
+    client_id : str
+
 # Card - Redis Data Validation
 class SessionKey(BaseModel):
     session : str

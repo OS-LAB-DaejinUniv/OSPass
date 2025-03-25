@@ -7,7 +7,6 @@ ENV PYTHONPATH=/app:${PYTHONPATH}
 
 COPY ./ospass/requirements.txt .
 COPY ./common ./common
-COPY ./const.py ./
 COPY ./custom_log.py ./
 COPY ./ospass/ .
 COPY ospass/.env ./
