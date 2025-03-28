@@ -301,7 +301,8 @@ def logout(response : Response, access_token:str=Depends(oauth2_scheme)):
     - 클라이언트가 전달한 access token을 이용하여 세션을 식별하고,
       Redis에 저장된 refresh token과 세션 정보를 삭제합니다.
     - 쿠키에 저장된 MySessionID도 삭제하여 클라이언트 측 인증 정보를 제거합니다.
-    :param access_token: OAuth2 Bearer 토큰
+    :param 
+    - access_token: OAuth2 Bearer 토큰
     :return: 로그아웃 성공 메시지
     """
     try:
