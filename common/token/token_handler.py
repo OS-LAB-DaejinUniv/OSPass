@@ -12,10 +12,12 @@ logger = logger_setup.logger
 class Token_Handler:
     def __init__(self):
         self.ACCESS_SECRET_KEY = os.getenv("APP_ACCESS_SECRET_KEY")
-        self.ALGORITHM = os.getenv("_ALGORITHM")
-        self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("_ACCESS_TOKEN_EXPIRE_MINUTES"))
         self.REFRESH_SECRET_KEY = os.getenv("APP_REFRESH_SECRET_KEY")
-        self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("_REFRESH_TOKEN_EXPIRE_DAYS")) 
+        
+        self.ALGORITHM = os.getenv("_ALGORITHM")
+        self.REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("_REFRESH_TOKEN_EXPIRE_DAYS"))
+        self.ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("_ACCESS_TOKEN_EXPIRE_MINUTES"))
+         
         self.WEB_ACCESS_SECRET_KEY = os.getenv("DEVPORTAL_ACCESS_SECRET_KEY")
         self.WEB_REFRESH_SECRET_KEY = os.getenv("DEVPORTAL_REFRESH_SECRET_KEY")
         
@@ -69,7 +71,7 @@ class Token_Handler:
                                 detail="Invalid Token")
     def web_verify_token(self, token:str, is_refresh : bool = False):
         try:
-            secret_key = self.WEB_REFRESH_SECRET_KEY if is_refresh else self.ACCESS_SECRET_KEY
+            secret_key = self.WEB_REFRESH_SECRET_KEY if is_refresh else self.WEB_ACCESS_SECRET_KEY
             payload = jwt.decode(token, secret_key, algorithms=[self.ALGORITHM])
             return payload
         except JWTError as je:

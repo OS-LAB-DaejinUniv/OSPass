@@ -11,10 +11,10 @@ security = HTTPBasic()
 # Devportal Cors 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://devportal.oslab", "http://localhost:3000"],
+    allow_origins=["http://devportal.oslab"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*","Authorization"]
+    allow_headers=["*"]
 )
 
 @app.middleware("http")

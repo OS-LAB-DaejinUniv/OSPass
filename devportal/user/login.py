@@ -95,19 +95,30 @@ def process_login(response : Response, token : Optional[str],
         key="access_token",
         value=access_token,
         httponly=True, # XSS 보호
-        secure=True, # HTTPS 환경에서만 전송
+        secure=False, # HTTPS 환경에서만 전송
         samesite="lax", # CSRF 보호
-        max_age=3600) # 1시간
-    
+        domain='203.237.81.248',
+        path='/',
+        max_age=60 # 1시간
+        )     
     # Refresh Token : HTTP-ONLY & Secure 쿠키 저장
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True, # XSS 보호
-        secure=True, # HTTPS 환경에서만 전송
+        secure=False, # HTTPS 환경에서만 전송
         samesite="lax", # CSRF 보호
-        max_age=ttl)
-    
+        domain='203.237.81.248',
+        path='/',
+        max_age=ttl
+        )
+    print(f"""Access Token 쿠키 설정: 
+          access_token={access_token}, 
+          HttpOnly=True, Secure=False, SameSite=lax, Max-Age=60""")
+    print(f"""Refresh Token 쿠키 설정: 
+          refresh_token={refresh_token}, 
+          HttpOnly=True, Secure=False, SameSite=lax, Max-Age={ttl}""")
+    print(f"Response Header:{response.headers}")
     return {
         "status" : status.HTTP_200_OK,
         "access_token" : access_token,
@@ -120,6 +131,12 @@ def issued_refresh_token(request : Request):
     - 쿠키에서 Refresh Token을 가져와 검증 후 새로운 Access Token 발급
     '''
     # cookie에서 refresh token 가져오기
+    print("issued refresh token 함수 호출됨")
+    print(f"Received Cookies:{request.cookies}")
+    print(f"request Headers:{request.headers}")
+    if request.method == 'OPTIONS':
+        return Response(status_code=200)
+    
     refresh_token = request.cookies.get("refresh_token")
     print(f"refresh token get cookie:{refresh_token}")
     if not refresh_token:
@@ -134,9 +151,11 @@ def issued_refresh_token(request : Request):
         
         # Redis에 저장된 refresh token 확인
         stored_refresh_token = rd.get(f"refresh_token:{_uid}")
+        if stored_refresh_token:
+            stored_refresh_token = stored_refresh_token.decode('utf-8')
         
         # refresh token 유효성 검증(블랙리스트 포함 여부)
-        if not stored_refresh_token or stored_refresh_token.decode() != refresh_token:
+        if not stored_refresh_token or stored_refresh_token != refresh_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid Refresh Token",
                                 headers={"WWW-Authenticate" : "Bearer"})
@@ -150,7 +169,8 @@ def issued_refresh_token(request : Request):
         "message" : "Access Token refreshed successfully"
         }
         
-    except JWTError:
+    except JWTError as je:
+        logger.error(f"JWT ERROR:{str(je)}")
         raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid Refresh Token",
