@@ -1,7 +1,8 @@
 from fastapi import Form
 from pydantic import BaseModel, HttpUrl, field_validator
 from typing import List, Optional, Union
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 import re
 
 # Join User Data Validation
@@ -119,3 +120,24 @@ class UpdateUser(BaseModel):
                 raise ValueError("user_name : cannot contain only consonants (must have vowels)")
         
         return value
+    
+class ScheduleCreate(BaseModel):
+    title : str
+    content : str
+    start_time : datetime
+    end_time : datetime
+    time_zone : str = "UTC"
+    
+    def convert_to_utc(self):
+        tz = ZoneInfo(self.time_zone)
+        self.start_time = self.start_time.replace(tzinfo=tz).astimezone(ZoneInfo("UTC"))
+        self.end_time = self.end_time.replace(tzinfo=tz).astimezone(ZoneInfo("UTC"))
+
+class ScheduleResponse(BaseModel):
+    idx: int
+    title: str
+    content: str
+    start_time: datetime
+    end_time: datetime
+    time_zone: str
+    creator: str

@@ -3,10 +3,15 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from typing import Optional
+from zoneinfo import ZoneInfo
 from common.database.conn_postgre import get_db
-from devportal_schemes import JoinUser, LoginForm
+from common.database.async_postgre import get_async_db
+from common.models.models import Calendar
+from devportal_schemes import JoinUser, LoginForm, ScheduleCreate, ScheduleResponse
 from user.register import register_user
 from user.login import process_login, issued_refresh_token, current_user_info, process_logout
 from user.find_passwd import process_reset_user_password
@@ -17,6 +22,7 @@ from register_service.redirect_uri import process_register_redirect_uri, get_ser
 from register_service.remove_service import process_remove_service
 from devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
 from register_service._show_service import show_service
+from schedule.schedule_service import create_schedule, fetch_schedule, update_schedule, delete_schedule
 from custom_log import LoggerSetup
 
 devportal_router = APIRouter(prefix="/api", tags=["devportal"])
@@ -153,7 +159,8 @@ async def remove_service(client_id:str,
 
 # Devportal에서 User의 비밀번호 Reset API
 @devportal_router.post("/v1/reset-password")
-def reset_user_password(user_id:str=Form(...), db:Session=Depends(get_db)):
+def reset_user_password(user_id:str=Form(...), 
+                        db:Session=Depends(get_db)):
     '''
     - 비밀번호 찾기 Endpoint
     - user_id : 사용자 ID 입력
@@ -164,7 +171,8 @@ def reset_user_password(user_id:str=Form(...), db:Session=Depends(get_db)):
 
 # Devportal에서 User 회원탈퇴 API
 @devportal_router.delete("/v1/delete-user")
-def delete_user(db:Session=Depends(get_db), current_user:dict=Depends(current_user_info)):
+def delete_user(db:Session=Depends(get_db),
+                current_user:dict=Depends(current_user_info)):
     '''
     - 사용자 탈퇴 Endpoint
     '''
@@ -185,3 +193,69 @@ def protected_service(user_info:dict=Depends(current_user_info)):
     # 인증된 사용자에게 제공
     return {"message" : "인증된 상태입니다.",
             "user" : user_info}
+    
+@devportal_router.post("/v1/calendars")
+async def createSchedule(schedule:ScheduleCreate,
+                         db:AsyncSession=Depends(get_async_db),
+                         current_user:dict=Depends(current_user_info)):
+    """
+    공통 달력에 스케줄을 등록 API
+    """
+    return await create_schedule(schedule, db, current_user)
+
+@devportal_router.get("/v1/calendars", response_model=list[ScheduleResponse])
+async def getAllSchedule(db:AsyncSession=Depends(get_async_db)):
+    """
+    공통 달력에 작성된 일정 조회 API
+    로그인한 모든 사용자가 조회 가능
+    """
+    try:
+        return await fetch_schedule(db)
+    except HTTPException as e:
+        raise
+    except Exception as e:
+        logger.error(f"Unhandled error: {str(e)}")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@devportal_router.get("/v1/calendars/{schedule_id}", response_model=ScheduleResponse)
+async def getSingleSchedule(schedule_id:int,
+                            db:AsyncSession=Depends(get_async_db)):
+    """
+    개별 스케줄 조회 API
+    """
+    query = select(Calendar).options(selectinload(Calendar.user)).where(
+        Calendar.idx== schedule_id)
+    result = await db.execute(query)
+    schedule = result.scalar_one_or_none()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return ScheduleResponse(
+        idx=schedule.idx,
+        title=schedule.title,
+        content=schedule.content,
+        start_time=schedule.start_time.astimezone(ZoneInfo("Asia/Seoul")),
+        end_time=schedule.end_time.astimezone(ZoneInfo("Asia/Seoul")),
+        time_zone="Asia/Seoul",
+        creator=schedule.user.user_name if schedule.user else "Unknown"
+    )
+    
+@devportal_router.put("/v1/calendars/{schedule_id}")
+async def updateSchedule(schedule_id:int,
+                         data:ScheduleCreate,
+                         db:AsyncSession=Depends(get_async_db),
+                         current_user:dict=Depends(current_user_info)):
+    """
+    공통 달력에 작성자가 작성한 일정 수정 API
+    작성자만 수정 허용
+    """
+    return await update_schedule(schedule_id, data, db, current_user)
+
+@devportal_router.delete("/v1/calendars/{schedule_id}")
+async def deleteSchedule(schedule_id:int,
+                         db:AsyncSession=Depends(get_async_db),
+                         current_user:dict=Depends(current_user_info)):
+    """
+    공통 달력에 작성된 일정 삭제 API
+    작성자만 삭제 허용
+    """
+    return await delete_schedule(schedule_id, db, current_user)
