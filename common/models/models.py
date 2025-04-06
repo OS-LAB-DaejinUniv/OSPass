@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Sequence, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import TIMESTAMP, Date
 from sqlalchemy.dialects.postgresql import JSONB
@@ -6,14 +6,6 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import func # func.now() == 현재 시간
 from datetime import timedelta
 from common.database.conn_postgre import Base
-
-# created
-class OsMember(Base):
-    __tablename__ = "osmember"
-    
-    uuid = Column(String, primary_key = True, index=True)
-    name = Column(String, index = True)
-    position = Column(Integer,index=True)
 
 class Users(Base):
     __tablename__ = "users"
@@ -33,6 +25,8 @@ class Users(Base):
     # Users와 APP_Refresh_Tokens 테이블 간 관계 설정
     app_refresh_tokens = relationship("APP_Refresh_Tokens", back_populates="user")
     
+    calendars = relationship("Calendar", back_populates="user")
+    notes = relationship("Notes", back_populates="user")
 class API_Key(Base):
     __tablename__ = "apikey"
     
@@ -55,3 +49,32 @@ class APP_Refresh_Tokens(Base):
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
     
     user = relationship("Users", back_populates="app_refresh_tokens")
+    
+class Calendar(Base):
+    __tablename__ = "calendar"
+    
+    idx = Column(Integer, autoincrement=True, primary_key=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=True)
+    start_time = Column(TIMESTAMP(timezone=True), nullable=False)
+    end_time = Column(TIMESTAMP(timezone=True), nullable=False)
+    time_zone = Column(String(50), nullable=True, default='UTC')
+    user_id = Column(String(255), ForeignKey('users.uid'), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now()) # UTC Timezone processing
+    updated_at = Column(TIMESTAMP(True), server_default=func.now(), onupdate=func.now()) 
+    
+    user = relationship("Users", back_populates="calendars")
+    notes = relationship("Notes", back_populates="calendars")
+    
+class Notes(Base):
+    __tablename__ = "notes"
+    
+    note_id = Column(Integer, primary_key=True, autoincrement=True)
+    calendar_id = Column(Integer, ForeignKey('calendar.idx'), nullable=False)
+    user_id = Column(String(255), ForeignKey('users.uid'), nullable=False)
+    content = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    # 관계 설정
+    calendars = relationship("Calendar", back_populates="notes")
+    user = relationship("Users", back_populates="notes")
