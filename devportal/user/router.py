@@ -1,0 +1,118 @@
+"""
+User Service API Router
+"""
+from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Form
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+from typing import Optional
+from devportal_schemes import JoinUser, LoginForm, UpdateUser
+from common.database.conn_postgre import get_db
+from user.register import register_user
+from user.login import process_login, issued_refresh_token, process_logout
+from user.find_passwd import process_reset_user_password
+from user.delete_user import process_delete_user
+from user.modify_user import process_modify_user
+from auth.currentUser import current_user_info
+from custom_log import LoggerSetup
+
+user_router = APIRouter(prefix="/api", tags=["Devportal User Service"])
+
+# auto_error=True(defautl 값) : 요청에 Autorization 헤더가 없으면 401 에러 발생시킴
+# auto_error=False : Authorization 헤더 없어도 에러 발생 X, 토큰이 없으면 None 반환, 개발자가 토큰 존재 여부 직접 처리
+# False로 설정한 이유 : id-login api 경우 최초 로그인 시 토큰 없는 것이 정상
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+logger_setup = LoggerSetup()
+logger = logger_setup.logger
+
+# Devportal Register API
+@user_router.post("/v1/register")
+def register(new_user:JoinUser, db:Session=Depends(get_db)):
+    '''
+    - Devportal 회원가입 Endpoint
+    '''
+    try:
+        user = register_user(new_user, db)
+        return {
+            "status": status.HTTP_201_CREATED,
+            "message": "User registration successful",
+            "data": {
+                "uid": user.uid,
+                "user_id": user.user_id
+            }
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unhandled error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Devportal Login API
+@user_router.post("/v1/id-login")
+def login(response : Response, token:Optional[str]=Depends(oauth2_scheme), 
+          db: Session=Depends(get_db), login_form: LoginForm = Depends()):
+    '''
+    - Devportal 로그인 Endpoint
+    '''
+    return process_login(response, token, db, login_form)
+
+# Refresh Token 발급 API
+@user_router.post("/v1/id-refresh-token")
+def refresh_token(request : Request):
+    '''
+    - Refresh Token 발급 Endpoint
+    '''
+    return issued_refresh_token(request)
+
+# Currnet User Information API
+@user_router.get("/v1/current-user")
+def get_current_user(token: str=Depends(oauth2_scheme)):
+    '''
+    - Devportal Current User Information Endpoint
+    - user_id, user_name 제공
+    '''
+    return current_user_info(token)
+
+# Devportal Logout API
+@user_router.post("/v1/id-logout")
+def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
+    '''
+    - Devportal Logout Endpoint
+    - Token Blacklist 방식
+    '''
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Token is required for logout")
+    return process_logout(response, token)
+
+# User Information Modifying
+@user_router.post("/v1/modify")
+def modify_user(_updateUser:UpdateUser, 
+                db:Session=Depends(get_db), 
+                current_user=Depends(current_user_info)):
+    '''
+    - Devportal에서 User Info 수정 Endpoint
+    '''
+    return process_modify_user(_updateUser, db, current_user)
+
+# Devportal에서 User의 비밀번호 Reset API
+@user_router.post("/v1/reset-password")
+def reset_user_password(user_id:str=Form(...), 
+                        db:Session=Depends(get_db)):
+    '''
+    - 비밀번호 찾기 Endpoint
+    - user_id : 사용자 ID 입력
+    '''
+    process_reset_user_password(user_id, db)
+    return {"status" : status.HTTP_200_OK,
+            "message" : "Password reset successfully"}
+
+# Devportal에서 User 회원탈퇴 API
+@user_router.delete("/v1/delete-user")
+def delete_user(db:Session=Depends(get_db),
+                current_user:dict=Depends(current_user_info)):
+    '''
+    - 사용자 탈퇴 Endpoint
+    '''
+    result = process_delete_user(db, current_user)
+    return result

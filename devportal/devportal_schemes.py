@@ -141,3 +141,15 @@ class ScheduleResponse(BaseModel):
     end_time: datetime
     time_zone: str
     creator: str
+    
+class ShareSchedule(BaseModel):
+    idx: int
+    title: str
+    start_time: datetime
+    end_time: datetime
+    creator: str
+    
+    class Confing:
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat()
+        }

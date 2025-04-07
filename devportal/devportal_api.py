@@ -1,261 +1,261 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session, selectinload
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from typing import Optional
-from zoneinfo import ZoneInfo
-from common.database.conn_postgre import get_db
-from common.database.async_postgre import get_async_db
-from common.models.models import Calendar
-from devportal_schemes import JoinUser, LoginForm, ScheduleCreate, ScheduleResponse
-from user.register import register_user
-from user.login import process_login, issued_refresh_token, current_user_info, process_logout
-from user.find_passwd import process_reset_user_password
-from user.delete_user import process_delete_user
-from user.modify_user import process_modify_user
-from register_service.service_name import process_register_service
-from register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
-from register_service.remove_service import process_remove_service
-from devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
-from register_service._show_service import show_service
-from schedule.schedule_service import create_schedule, fetch_schedule, update_schedule, delete_schedule
-from custom_log import LoggerSetup
+# import sys
+# import os
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# from fastapi import APIRouter, Depends, status, Response, Request, HTTPException, Query, Form
+# from fastapi.security import OAuth2PasswordBearer
+# from sqlalchemy.orm import Session, selectinload
+# from sqlalchemy.ext.asyncio import AsyncSession
+# from sqlalchemy.future import select
+# from typing import Optional
+# from zoneinfo import ZoneInfo
+# from common.database.conn_postgre import get_db
+# from common.database.async_postgre import get_async_db
+# from common.models.models import Calendar
+# from devportal_schemes import JoinUser, LoginForm, ScheduleCreate, ScheduleResponse
+# from user.register import register_user
+# from user.login import process_login, issued_refresh_token, process_logout
+# from user.find_passwd import process_reset_user_password
+# from user.delete_user import process_delete_user
+# from user.modify_user import process_modify_user
+# from register_service.service_name import process_register_service
+# from register_service.redirect_uri import process_register_redirect_uri, get_service_redirect_uri
+# from register_service.remove_service import process_remove_service
+# from devportal_schemes import UpdateUser, RegisterRedirectUri, RegisterServiceRequset, RedirectUriResponse
+# from register_service._show_service import show_service
+# from schedule.schedule_service import create_schedule, fetch_schedule, update_schedule, delete_schedule
+# from custom_log import LoggerSetup
 
-devportal_router = APIRouter(prefix="/api", tags=["devportal"])
+# devportal_router = APIRouter(prefix="/api", tags=["devportal"])
 
-logger_setup = LoggerSetup()
-logger = logger_setup.logger
+# logger_setup = LoggerSetup()
+# logger = logger_setup.logger
 
-# auto_error=True(defautl 값) : 요청에 Autorization 헤더가 없으면 401 에러 발생시킴
-# auto_error=False : Authorization 헤더 없어도 에러 발생 X, 토큰이 없으면 None 반환, 개발자가 토큰 존재 여부 직접 처리
-# False로 설정한 이유 : id-login api 경우 최초 로그인 시 토큰 없는 것이 정상
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+# # auto_error=True(defautl 값) : 요청에 Autorization 헤더가 없으면 401 에러 발생시킴
+# # auto_error=False : Authorization 헤더 없어도 에러 발생 X, 토큰이 없으면 None 반환, 개발자가 토큰 존재 여부 직접 처리
+# # False로 설정한 이유 : id-login api 경우 최초 로그인 시 토큰 없는 것이 정상
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-# Devportal Register API
-@devportal_router.post("/v1/register")
-def register(new_user:JoinUser, db:Session=Depends(get_db)):
-    '''
-    - Devportal 회원가입 Endpoint
-    '''
-    try:
-        user = register_user(new_user, db)
-        return {
-            "status": status.HTTP_201_CREATED,
-            "message": "User registration successful",
-            "data": {
-                "uid": user.uid,
-                "user_id": user.user_id
-            }
-        }
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Unhandled error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+# # Devportal Register API
+# @devportal_router.post("/v1/register")
+# def register(new_user:JoinUser, db:Session=Depends(get_db)):
+#     '''
+#     - Devportal 회원가입 Endpoint
+#     '''
+#     try:
+#         user = register_user(new_user, db)
+#         return {
+#             "status": status.HTTP_201_CREATED,
+#             "message": "User registration successful",
+#             "data": {
+#                 "uid": user.uid,
+#                 "user_id": user.user_id
+#             }
+#         }
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         logger.error(f"Unhandled error: {str(e)}")
+#         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Devportal Login API
-@devportal_router.post("/v1/id-login")
-def login(response : Response, token:Optional[str]=Depends(oauth2_scheme), 
-          db: Session=Depends(get_db), login_form: LoginForm = Depends()):
-    '''
-    - Devportal 로그인 Endpoint
-    '''
-    return process_login(response, token, db, login_form)
+# # Devportal Login API
+# @devportal_router.post("/v1/id-login")
+# def login(response : Response, token:Optional[str]=Depends(oauth2_scheme), 
+#           db: Session=Depends(get_db), login_form: LoginForm = Depends()):
+#     '''
+#     - Devportal 로그인 Endpoint
+#     '''
+#     return process_login(response, token, db, login_form)
 
-# Refresh Token 발급 API
-@devportal_router.post("/v1/id-refresh-token")
-def refresh_token(request : Request):
-    '''
-    - Refresh Token 발급 Endpoint
-    '''
-    return issued_refresh_token(request)
+# # Refresh Token 발급 API
+# @devportal_router.post("/v1/id-refresh-token")
+# def refresh_token(request : Request):
+#     '''
+#     - Refresh Token 발급 Endpoint
+#     '''
+#     return issued_refresh_token(request)
 
-# Currnet User Information API
-@devportal_router.get("/v1/current-user")
-def get_current_user(token: str=Depends(oauth2_scheme)):
-    '''
-    - Devportal Current User Information Endpoint
-    - user_id, user_name 제공
-    '''
-    return current_user_info(token)
+# # Currnet User Information API
+# @devportal_router.get("/v1/current-user")
+# def get_current_user(token: str=Depends(oauth2_scheme)):
+#     '''
+#     - Devportal Current User Information Endpoint
+#     - user_id, user_name 제공
+#     '''
+#     return current_user_info(token)
 
-# Devportal Logout API
-@devportal_router.post("/v1/id-logout")
-def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
-    '''
-    - Devportal Logout Endpoint
-    - Token Blacklist 방식
-    '''
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Token is required for logout")
-    return process_logout(response, token)
+# # Devportal Logout API
+# @devportal_router.post("/v1/id-logout")
+# def logout(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
+#     '''
+#     - Devportal Logout Endpoint
+#     - Token Blacklist 방식
+#     '''
+#     if not token:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+#                             detail="Token is required for logout")
+#     return process_logout(response, token)
 
-# User Information Modifying
-@devportal_router.post("/v1/modify")
-def modify_user(_updateUser:UpdateUser, 
-                db:Session=Depends(get_db), 
-                current_user=Depends(current_user_info)):
-    '''
-    - Devportal에서 User Info 수정 Endpoint
-    '''
-    return process_modify_user(_updateUser, db, current_user)
+# # User Information Modifying
+# @devportal_router.post("/v1/modify")
+# def modify_user(_updateUser:UpdateUser, 
+#                 db:Session=Depends(get_db), 
+#                 current_user=Depends(current_user_info)):
+#     '''
+#     - Devportal에서 User Info 수정 Endpoint
+#     '''
+#     return process_modify_user(_updateUser, db, current_user)
 
-# Devportal에서 User의 Service 등록 API    
-@devportal_router.post("/v1/register-service")
-def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db), current_user=Depends(current_user_info)):
-    '''
-    - Service Name 등록 Endpoint
-    '''
-    result = process_register_service(request.service_name,db,current_user)
-    return result
+# # Devportal에서 User의 Service 등록 API    
+# @devportal_router.post("/v1/register-service")
+# def register_service(request : RegisterServiceRequset, db:Session=Depends(get_db), current_user=Depends(current_user_info)):
+#     '''
+#     - Service Name 등록 Endpoint
+#     '''
+#     result = process_register_service(request.service_name,db,current_user)
+#     return result
 
-@devportal_router.get("/v1/services/")
-def services(db:Session=Depends(get_db),current_user=Depends(current_user_info)):
-    '''
-    - 등록된 Service Infomation List Up Endpoint
-    '''
-    user_name = current_user["user_name"]
+# @devportal_router.get("/v1/services/")
+# def services(db:Session=Depends(get_db),current_user=Depends(current_user_info)):
+#     '''
+#     - 등록된 Service Infomation List Up Endpoint
+#     '''
+#     user_name = current_user["user_name"]
     
-    return show_service(db, current_user)
+#     return show_service(db, current_user)
 
-# Devportal에서 User의 Service Redirect Uri 등록 API
-@devportal_router.post("/v1/redirect-uris")
-def register_redirect_uris(data : RegisterRedirectUri,
-                           current_user:dict=Depends(current_user_info), 
-                           db:Session=Depends(get_db)):
-    '''
-    - Redirect Uri 등록 Endpoint
-    - List Type[] , 여러 개 등록 가능
-    - data : client_id, redirect_uri
-    '''
-    result = process_register_redirect_uri(data,db,current_user)
-    return result
+# # Devportal에서 User의 Service Redirect Uri 등록 API
+# @devportal_router.post("/v1/redirect-uris")
+# def register_redirect_uris(data : RegisterRedirectUri,
+#                            current_user:dict=Depends(current_user_info), 
+#                            db:Session=Depends(get_db)):
+#     '''
+#     - Redirect Uri 등록 Endpoint
+#     - List Type[] , 여러 개 등록 가능
+#     - data : client_id, redirect_uri
+#     '''
+#     result = process_register_redirect_uri(data,db,current_user)
+#     return result
 
-# Devportal에서 User가 등록한 개별 Serivce에 대한 Redirect Uri Showing API
-@devportal_router.get("/v1/redirect_uris", response_model=RedirectUriResponse)
-def get_redirect_uris(idx: int=Query(...,description="API_KEY Idx"),
-                        client_id:Optional[str]=Query(None, description="Filter by client ID"), # 선택적
-                        db:Session=Depends(get_db),
-                        current_user:dict=Depends(current_user_info)):
+# # Devportal에서 User가 등록한 개별 Serivce에 대한 Redirect Uri Showing API
+# @devportal_router.get("/v1/redirect_uris", response_model=RedirectUriResponse)
+# def get_redirect_uris(idx: int=Query(...,description="API_KEY Idx"),
+#                         client_id:Optional[str]=Query(None, description="Filter by client ID"), # 선택적
+#                         db:Session=Depends(get_db),
+#                         current_user:dict=Depends(current_user_info)):
     
-    return get_service_redirect_uri(idx, client_id, db, current_user)
+#     return get_service_redirect_uri(idx, client_id, db, current_user)
     
-# Devportal에서 User가 등록한 개별 Service에 대한 Service 삭제 API
-@devportal_router.delete("/v1/service/{client_id}")
-async def remove_service(client_id:str,
-                         db:Session=Depends(get_db),
-                         current_user:str=Depends(current_user_info)):
-    '''
-    - 서비스 삭제 Endpoint
-    Args:
-    - client_id : 삭제할 서비스의 client_id(고유번호)
-    '''
-    return process_remove_service(client_id, db, current_user)
+# # Devportal에서 User가 등록한 개별 Service에 대한 Service 삭제 API
+# @devportal_router.delete("/v1/service/{client_id}")
+# async def remove_service(client_id:str,
+#                          db:Session=Depends(get_db),
+#                          current_user:str=Depends(current_user_info)):
+#     '''
+#     - 서비스 삭제 Endpoint
+#     Args:
+#     - client_id : 삭제할 서비스의 client_id(고유번호)
+#     '''
+#     return process_remove_service(client_id, db, current_user)
 
-# Devportal에서 User의 비밀번호 Reset API
-@devportal_router.post("/v1/reset-password")
-def reset_user_password(user_id:str=Form(...), 
-                        db:Session=Depends(get_db)):
-    '''
-    - 비밀번호 찾기 Endpoint
-    - user_id : 사용자 ID 입력
-    '''
-    process_reset_user_password(user_id, db)
-    return {"status" : status.HTTP_200_OK,
-            "message" : "Password reset successfully"}
+# # Devportal에서 User의 비밀번호 Reset API
+# @devportal_router.post("/v1/reset-password")
+# def reset_user_password(user_id:str=Form(...), 
+#                         db:Session=Depends(get_db)):
+#     '''
+#     - 비밀번호 찾기 Endpoint
+#     - user_id : 사용자 ID 입력
+#     '''
+#     process_reset_user_password(user_id, db)
+#     return {"status" : status.HTTP_200_OK,
+#             "message" : "Password reset successfully"}
 
-# Devportal에서 User 회원탈퇴 API
-@devportal_router.delete("/v1/delete-user")
-def delete_user(db:Session=Depends(get_db),
-                current_user:dict=Depends(current_user_info)):
-    '''
-    - 사용자 탈퇴 Endpoint
-    '''
-    result = process_delete_user(db, current_user)
-    return result
+# # Devportal에서 User 회원탈퇴 API
+# @devportal_router.delete("/v1/delete-user")
+# def delete_user(db:Session=Depends(get_db),
+#                 current_user:dict=Depends(current_user_info)):
+#     '''
+#     - 사용자 탈퇴 Endpoint
+#     '''
+#     result = process_delete_user(db, current_user)
+#     return result
 
-# MSA를 위한 사용자 인증 API
-@devportal_router.get("/v1/protected-service")
-def protected_service(user_info:dict=Depends(current_user_info)):
-    """
-    인증된 사용자만 접근할 수 있는 서비스(인증 Endpoint)
-    Micro Service에서 호출할 API
-    """
-    if user_info["status"] != status.HTTP_200_OK:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Unauthorized")
+# # MSA를 위한 사용자 인증 API
+# @devportal_router.get("/v1/protected-service")
+# def protected_service(user_info:dict=Depends(current_user_info)):
+#     """
+#     인증된 사용자만 접근할 수 있는 서비스(인증 Endpoint)
+#     Micro Service에서 호출할 API
+#     """
+#     if user_info["status"] != status.HTTP_200_OK:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+#                             detail="Unauthorized")
     
-    # 인증된 사용자에게 제공
-    return {"message" : "인증된 상태입니다.",
-            "user" : user_info}
+#     # 인증된 사용자에게 제공
+#     return {"message" : "인증된 상태입니다.",
+#             "user" : user_info}
     
-@devportal_router.post("/v1/calendars")
-async def createSchedule(schedule:ScheduleCreate,
-                         db:AsyncSession=Depends(get_async_db),
-                         current_user:dict=Depends(current_user_info)):
-    """
-    공통 달력에 스케줄을 등록 API
-    """
-    return await create_schedule(schedule, db, current_user)
+# @devportal_router.post("/v1/calendars")
+# async def createSchedule(schedule:ScheduleCreate,
+#                          db:AsyncSession=Depends(get_async_db),
+#                          current_user:dict=Depends(current_user_info)):
+#     """
+#     공통 달력에 스케줄을 등록 API
+#     """
+#     return await create_schedule(schedule, db, current_user)
 
-@devportal_router.get("/v1/calendars", response_model=list[ScheduleResponse])
-async def getAllSchedule(db:AsyncSession=Depends(get_async_db)):
-    """
-    공통 달력에 작성된 일정 조회 API
-    로그인한 모든 사용자가 조회 가능
-    """
-    try:
-        return await fetch_schedule(db)
-    except HTTPException as e:
-        raise
-    except Exception as e:
-        logger.error(f"Unhandled error: {str(e)}")
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+# @devportal_router.get("/v1/calendars", response_model=list[ScheduleResponse])
+# async def getAllSchedule(db:AsyncSession=Depends(get_async_db)):
+#     """
+#     공통 달력에 작성된 일정 조회 API
+#     로그인한 모든 사용자가 조회 가능
+#     """
+#     try:
+#         return await fetch_schedule(db)
+#     except HTTPException as e:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Unhandled error: {str(e)}")
+#         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@devportal_router.get("/v1/calendars/{schedule_id}", response_model=ScheduleResponse)
-async def getSingleSchedule(schedule_id:int,
-                            db:AsyncSession=Depends(get_async_db)):
-    """
-    개별 스케줄 조회 API
-    """
-    query = select(Calendar).options(selectinload(Calendar.user)).where(
-        Calendar.idx== schedule_id)
-    result = await db.execute(query)
-    schedule = result.scalar_one_or_none()
-    if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-    return ScheduleResponse(
-        idx=schedule.idx,
-        title=schedule.title,
-        content=schedule.content,
-        start_time=schedule.start_time.astimezone(ZoneInfo("Asia/Seoul")),
-        end_time=schedule.end_time.astimezone(ZoneInfo("Asia/Seoul")),
-        time_zone="Asia/Seoul",
-        creator=schedule.user.user_name if schedule.user else "Unknown"
-    )
+# @devportal_router.get("/v1/calendars/{schedule_id}", response_model=ScheduleResponse)
+# async def getSingleSchedule(schedule_id:int,
+#                             db:AsyncSession=Depends(get_async_db)):
+#     """
+#     개별 스케줄 조회 API
+#     """
+#     query = select(Calendar).options(selectinload(Calendar.user)).where(
+#         Calendar.idx== schedule_id)
+#     result = await db.execute(query)
+#     schedule = result.scalar_one_or_none()
+#     if not schedule:
+#         raise HTTPException(status_code=404, detail="Schedule not found")
+#     return ScheduleResponse(
+#         idx=schedule.idx,
+#         title=schedule.title,
+#         content=schedule.content,
+#         start_time=schedule.start_time.astimezone(ZoneInfo("Asia/Seoul")),
+#         end_time=schedule.end_time.astimezone(ZoneInfo("Asia/Seoul")),
+#         time_zone="Asia/Seoul",
+#         creator=schedule.user.user_name if schedule.user else "Unknown"
+#     )
     
-@devportal_router.put("/v1/calendars/{schedule_id}")
-async def updateSchedule(schedule_id:int,
-                         data:ScheduleCreate,
-                         db:AsyncSession=Depends(get_async_db),
-                         current_user:dict=Depends(current_user_info)):
-    """
-    공통 달력에 작성자가 작성한 일정 수정 API
-    작성자만 수정 허용
-    """
-    return await update_schedule(schedule_id, data, db, current_user)
+# @devportal_router.put("/v1/calendars/{schedule_id}")
+# async def updateSchedule(schedule_id:int,
+#                          data:ScheduleCreate,
+#                          db:AsyncSession=Depends(get_async_db),
+#                          current_user:dict=Depends(current_user_info)):
+#     """
+#     공통 달력에 작성자가 작성한 일정 수정 API
+#     작성자만 수정 허용
+#     """
+#     return await update_schedule(schedule_id, data, db, current_user)
 
-@devportal_router.delete("/v1/calendars/{schedule_id}")
-async def deleteSchedule(schedule_id:int,
-                         db:AsyncSession=Depends(get_async_db),
-                         current_user:dict=Depends(current_user_info)):
-    """
-    공통 달력에 작성된 일정 삭제 API
-    작성자만 삭제 허용
-    """
-    return await delete_schedule(schedule_id, db, current_user)
+# @devportal_router.delete("/v1/calendars/{schedule_id}")
+# async def deleteSchedule(schedule_id:int,
+#                          db:AsyncSession=Depends(get_async_db),
+#                          current_user:dict=Depends(current_user_info)):
+#     """
+#     공통 달력에 작성된 일정 삭제 API
+#     작성자만 삭제 허용
+#     """
+#     return await delete_schedule(schedule_id, db, current_user)

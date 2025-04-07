@@ -3,7 +3,10 @@ from fastapi.security import HTTPBasic
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
-from devportal_api import devportal_router
+from user.router import user_router
+from register_service.router import ospassSerivce_router
+from auth.router import auth_router
+from schedule.router import schedule_router
 
 app = FastAPI()
 security = HTTPBasic()
@@ -37,7 +40,10 @@ async def request_log(request: Request, call_next):
 async def main():
     return {"message": "Devportal from OS-LAB"}
 
-app.include_router(devportal_router)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(ospassSerivce_router)
+app.include_router(schedule_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
