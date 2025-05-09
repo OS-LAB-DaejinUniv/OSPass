@@ -16,7 +16,9 @@ from custom_log import LoggerSetup
 from service.auth import process_verify_card_response
 from service.token import Oauth_Token
 from service.ospass_login import process_ospass_login
-from schemes import InitLoginRequest
+from service.profile import getProfileInfo
+from utils.currentUser import currentUserInfo
+from schemes import InitLoginRequest, Profile
 
 ospass_router = APIRouter(prefix="/api", tags=["ospass"])
 
@@ -50,13 +52,12 @@ def ospass_login(request : InitLoginRequest,
                             detail="Invalid Phone Number")
 
 @ospass_router.post("/v1/card-response")
-async def verify_card_response(response : Response, 
+def verify_card_response(response : Response, 
                                data : Card_Data, 
                                client_id : str=Query(..., description="서비스 식별자"), 
                                db: Session = Depends(get_db)):
     '''
     - OSTOOLS에서 호출될 API
-    - QRcode -> Applink -> API 호출
     '''
     try:
         print(f"[DEBUG] Recieved Data:{data.model_dump()}")
@@ -73,7 +74,8 @@ async def verify_card_response(response : Response,
         response.set_cookie(key="MySessionID", value=s_id, 
                             httponly=True, secure=True)
         
-        # Redis에 (s_id -> UUID) & (UUID -> s_id) 저장
+        # Redis에 (s_id -> UUID) & (UUID -> s_id) 저장 
+        # 600(초) 
         rd.setex(s_id, 600, decrypted_uuid)
         rd.setex(decrypted_uuid, 600, s_id)
         
@@ -330,3 +332,8 @@ def logout(response : Response, access_token:str=Depends(oauth2_scheme)):
         logger.error(f"Error Occured while Logout:{str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error during Logout")
+        
+@ospass_router.get("/api/v1/profile", response_model=Profile)
+def getProfile(db:Session=Depends(get_db),
+               token_payload:dict=Depends(currentUserInfo)):
+    return getProfileInfo(db,token_payload)
