@@ -1,13 +1,13 @@
 from fastapi import HTTPException, status, Depends, Response, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
+from jose import JWTError
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from common.database.conn_postgre import get_db
 from common.models.models import Users, APP_Refresh_Tokens
 from common.token.token_handler import Token_Handler
-from schemes import LoginForm
+from schemes import LoginForm, LogoutRequest
 # from ..ospass.service.decrypt import decrypt_pp
 from custom_log import LoggerSetup
 
@@ -24,7 +24,7 @@ bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def verify_password(plain_password : str, hashed_password : str) -> bool:
     return bcrypt_context.verify(plain_password, hashed_password)
 
-def process_ostools_login(response : Response, db:Session, login_form:LoginForm=Depends()):
+def process_ostools_login(db:Session, login_form:LoginForm=Depends()):
     '''
     OSTools Login Process
     일반 로그인(user_id, user_password) -> 카드 로그인으로 변경 가능성 염두
@@ -32,81 +32,65 @@ def process_ostools_login(response : Response, db:Session, login_form:LoginForm=
     :param login_form : LoginForm(user_id, user_password) 
     '''
     user = db.query(Users).filter(Users.user_id == login_form.user_id).first()
-    if not user:
+    if not user or not verify_password(login_form.user_password, user.user_password):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Invalid User ID or Password")
-        
-    user_password = verify_password(login_form.user_password, user.user_password)
-    if not user_password:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Invalid User ID or Password")
-    
+    # 기존 Refresh Token 제거
+    db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.user_id==user.user_id).delete()
     # access token 생성
     access_token = token_handler.app_create_access_token(data={"sub" : user.uid})
     # refresh token 생성
     refresh_token = token_handler.app_create_refresh_token(data={"sub" : user.uid})
     
-    response.set_cookie(key="access_token", 
-                        value=access_token, 
-                        httponly=True, 
-                        secure=True)
-    response.set_cookie(key="refresh_token",
-                        value=refresh_token,
-                        httponly=True,
-                        secure=True)
-    
     # Refresh Token 저장 (만료 시간 명시)
     expires_at = datetime.now(timezone.utc) + timedelta(days=30)
-    new_refresh_token = APP_Refresh_Tokens(user_id=user.user_id, token=refresh_token, expires_at=expires_at)
+    new_refresh_token = APP_Refresh_Tokens(
+        user_id=user.user_id, 
+        token=refresh_token, 
+        expires_at=expires_at
+    )
     db.add(new_refresh_token)
     db.commit()
     
     return {
         "access_token" : access_token,
+        "refresh_token" : refresh_token,
         "token_type" : "bearer",
         "message" : "Login Success"
     }
 
-def issued_refresh_token(request : Request, db:Session):
+def issued_refresh_token(token:str, db:Session):
     '''
     Refresh Token 발급 
     DB에서 Refresh Token 관리 및 검증
     :param refresh_token : refresh token
     '''
-    refresh_token = request.cookies.get("refresh_token")
-    payload = token_handler.app_verify_token(refresh_token, is_refresh=True)
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Invalid Refresh Token")
     
     # DB에서 Refresh Token 확인
-    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == refresh_token).first()
+    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == token).first()
     if not stored_refresh_token or stored_refresh_token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Refresh Token Not Found or Expired")
-        
+    refresh_token = token
+    token_payload = token_handler.app_verify_token(refresh_token, is_refresh=True)
     # 새로운 Access Token 발급 : paylaod["sub"] -> uid
-    new_access_token = token_handler.app_create_access_token(data={"sub":payload["sub"]})
+    new_access_token = token_handler.app_create_access_token(data={"sub":token_payload["sub"]})
     return {
         "access_token" : new_access_token,
         "token_type" : "bearer"
     }
 
-def process_ostools_logout(request : Request,
-                           response : Response, 
+def process_ostools_logout(token:str,
                            db:Session):
     '''
     DB에 저장된 Refresh Token 삭제
     :param refresh_token : refresh token
     '''
-    refresh_token = request.cookies.get("refresh_token")
     # DB에 저장된 Refresh Token
-    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == refresh_token).first()
+    stored_refresh_token = db.query(APP_Refresh_Tokens).filter(APP_Refresh_Tokens.token == token).first()
     if stored_refresh_token:
         db.delete(stored_refresh_token)
         db.commit()
-    response.delete_cookie(key="access_token")
-    response.delete_cookie(key="refresh_token")
     return {
         "status" : status.HTTP_200_OK,
         "message" : "Logout Success"
@@ -137,20 +121,20 @@ def process_ostools_logout(request : Request,
 #     }
 
 # Current User Info
-async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def current_user_info(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     '''
     로그인 한 사용자 정보(user_id 조회 가능)
     '''
     try:
         data = token_handler.app_verify_token(token)
-        _uid: str = data.get("sub")
-        if _uid is None:
+        uid: str = data.get("sub")
+        if uid is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid Token payload"
             )
         # 사용자 정보 조회(user_id)
-        user = db.query(Users).filter(Users.uid == _uid).first()
+        user = db.query(Users).filter(Users.uid == uid).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -170,7 +154,7 @@ async def current_user_info(token: str = Depends(oauth2_scheme), db: Session = D
         
         return {
             "user_id" : user.user_id,
-            "uid" : _uid,
+            "uid" : uid,
             "user_name" : user.user_name
         }
         
