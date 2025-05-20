@@ -6,7 +6,9 @@ import uvicorn
 
 from common.database.conn_postgre import get_db
 from common.models.models import API_Key
-from ospass_api import ospass_router
+from router.cardResponse import cardResponse_router
+from router.nfcAuth import nfc_router
+from router.oauth import oauth_router 
 from custom_log import LoggerSetup
 
 app = FastAPI()
@@ -112,7 +114,9 @@ async def request_log(request: Request, call_next):
 def main():
     return {"message":"This is OSPASS"}
 
-app.include_router(ospass_router)
+app.include_router(nfc_router)
+app.include_router(cardResponse_router)
+app.include_router(oauth_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

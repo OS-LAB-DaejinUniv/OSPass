@@ -3,16 +3,22 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 import httpx
 import os
+import uuid
 import pika
 from pika.exceptions import AMQPConnectionError, AMQPChannelError, ConsumerCancelled
 import json
 from dotenv import load_dotenv
 from schemes import InitLoginRequest
 from service.auth import get_or_issue_challenge
+from router.redisConst import REDIS_AUTH_ATTEMPT_PREFIX
+from utils.findApikey import find_service_info_by_apikey_value, find_service_info_by_service_id_key, find_service_apikey_by_service_id_key
 from common.models.models import Users, API_Key
+from common.database.database import redis_config
 from custom_log import LoggerSetup
 
 load_dotenv()
+
+rd = redis_config()
 
 logger_setup = LoggerSetup()
 logger = logger_setup.logger
@@ -85,16 +91,24 @@ def data_producer(msg:dict):
                 logger.error(f"Error closing RMQ Connection: {str(e)}")
         
 # 1차 인증 수단
-def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
+def process_ospass_login(request : InitLoginRequest, 
+                         client_id:str,
+                         redirect_uri:str,
+                         state:str, 
+                         db:Session):
     '''
-    OSPASS Login 처리 함수
-    :param 
+    - OSPASS Login 처리 함수
+    - Attempt ID 발급 및 시도 상태 저장
+    :params
     - db: DB 세션
     - sliced_phone_num : User's Phone Number (010 제외)
-    - client_id : Devportal에서 등록한 서비스의 고유 식별 id(client_id)
+    - client_id : Devportal에서 등록한 Service ID(client_id)
+    - redirect_uri: 인증 완료 후 /v1/authorization이 Redirect할 서비스 URI
+    - state: OAuth 2.0 state 파라미터 (CSRF 방지 및 상태 유지)
     :return
     - push server 통신 결과
     '''
+    logger.debug(f"Entering ospass init login data: {request.sliced_phone_num}, client_id:{client_id}")
     try:
         # 생략된 010 추가
         full_phone_num = f"010{request.sliced_phone_num}"
@@ -118,17 +132,35 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
             logger.error(f"Client ID not found in DB : {client_id}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail="Not Found Your Registered Client_ID")
+        service_apikey_value = find_service_apikey_by_service_id_key(api_key_record.registered_service, client_id)
+        if not service_apikey_value:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                                detail="Internal service configuration error: missing apikey value")
         
-        client_data = api_key_record.registered_service.get(client_id)
-        if client_data:
-            print(f"Client ID: {client_id}")
-            print(f"Service Name: {client_data['service_name']}")
-            print(f"API KEY: {client_data['apikey']}")
-            
+        client_data = find_service_info_by_service_id_key(api_key_record.registered_service, client_id)
+        if not client_data:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail="Internal service configuration error")
+        attempt_id = str(uuid.uuid4())
+        logger.debug(f"Generated Attempt ID:{attempt_id}")
+        
         challenge = get_or_issue_challenge(client_id)
-        print(f"생성된 Challenge: {challenge}")
+        logger.debug(f"Get or Issued Challenge: {challenge}")
+        
+        attempt_state = {
+            "status": "pending",
+            "api_key": service_apikey_value,
+            "internal_service_id" : client_id,
+            "redirect_uri" : redirect_uri,
+            "state" : state,
+            "s_id" : None
+        }
+        attempt_ttl_seconds = 300
+        redis_key = f"{REDIS_AUTH_ATTEMPT_PREFIX}{attempt_id}"
+        rd.setex(redis_key, attempt_ttl_seconds, json.dumps(attempt_state))
         
         msg = {
+            "attempt_id" : attempt_id,
             "client_id" : client_id, 
             "full_phone_num" : full_phone_num, 
             "challenge" : challenge, 
@@ -138,25 +170,11 @@ def process_ospass_login(request : InitLoginRequest, client_id:str, db:Session):
         
         pro_data = data_producer(msg)
         print(f"보내기 성공: {pro_data}")
-        # # Push Server Communication Result
-        # push_result = push_server_communication(client_id, 
-        #                                         full_phone_num, 
-        #                                         challenge, 
-        #                                         user.uid)
-        
-        # if push_result.get("status") == "push_server_error":
-        #     logger.error(f"Push Server Occured: {push_result.get('message')}")
-        #     raise HTTPException(
-        #         status_code=status.HTTP_502_BAD_GATEWAY,
-        #         detail={
-        #             "error": "Push Server Communication Failed",
-        #             "message": push_result.get("message")
-        #         })
         
         return {
             "status" : status.HTTP_200_OK,
             "message" : "Successfully delivered data to Push Server",
-            "pub_data" : pro_data
+            "pub_data" : attempt_id
         }
     except HTTPException as he:
         raise he

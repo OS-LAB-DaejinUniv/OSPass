@@ -42,3 +42,24 @@ Flow
 
 바꿔야 할 것
 - jwt data 변경(devporatl/user/login : login, current_user_info) & (ostools/login/login)
+
+Authentication Flow
+1. OSPASS 1차 로그인을 시도한다
+- 필요한 데이터: 전화번호(8자리), 사용자가 서비스 등록시 사용한 service id(client_id): JSON Format KEY 
+2. 서비스 서버는 nfc-init-auth API를 호출하여 인증 시도를 시작하고 시도 ID(attempt_id)를 발급받는다.
+- 서비스 서버는 인증 서버(OSPASS API 서버)와 Polling 방식을 사용한다.
+- 사용되는 파라미터: APIKEY, redirect_uri, state
+- 반환값: 시도 ID(attempt_id)
+3. 서비스 서버는 nfc-status API를 호출하여 Polling 시 NFC 인증 시도의 현재 상태를 조회한다.(지속)
+4. Push Notification을 통해 넘어온 client_id, challenge를 앱에서 사용
+- HOW? : Push Notification을 통해 들어온 데이터(service_id, challnege)를 활용하여 card_response API에 사용한다.
+5. 앱에서 사용자 카드 인증이 되면 card-response API를 통해 앱에서 인증 서버로 response값과 service_id(client_id)를 POST 요청한다.
+6. card-response API(POST)가 응답을 하면 서비스 서버는 인증서버의 authorization API를 호출하여 인가코드를 발급받는다.
+7. 인가코드를 발급받고 해당 인가코드로 access token을 발급받는다.
+
+---배운 것---
+1. 지수백오프 알고리즘
+- 네트워크 통신 등에서 재시도 할 때 사용되는 알고리즘
+- 일정한 지연 시간 간격을 기반으로 재시도를 수행하는 방식
+- 과도한 리소스 사용 방지
+
