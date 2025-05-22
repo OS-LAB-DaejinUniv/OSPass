@@ -43,10 +43,8 @@ def get_or_issue_challenge(client_id : str):
     print(f'[get_or_issue_challenge] Issued {client_id}->{challenge}')
     return challenge
 
-# Usage:  Card Response 검증 
-# data: 카드에 담겨온 데이터
-# client_
-def process_verify_card_response(data:Card_Data, client_id : str, db: Session):
+
+def process_verify_card_response(data:Card_Data, expected_challenge: str, db: Session):
     """
     Card Response 검증 
     data: 카드에 담겨온 데이터
@@ -59,24 +57,21 @@ def process_verify_card_response(data:Card_Data, client_id : str, db: Session):
         decrypted_response = decrypted.get("response")
         print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
     
-        # Redis에서 챌린지 return 값
-        challenge_value = get_or_issue_challenge(client_id)
-        if isinstance(challenge_value, bytes):
-            stored_challenge = challenge_value.decode().upper()
-        else:
-            stored_challenge = challenge_value.upper()
-        
-        if not stored_challenge:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                                detail="Session not found or expired")
-        print(f"Challenge in Redis : {stored_challenge}, Response : {decrypted_response}")
+        # # Redis에서 챌린지 return 값
+        # challenge_value = get_or_issue_challenge(client_id)
+        # if isinstance(challenge_value, bytes):
+        #     stored_challenge = challenge_value.decode().upper()
+        # else:
+        #     stored_challenge = challenge_value.upper()
+        stored_challenge = expected_challenge.upper()
+        logger.debug(f"Challenge Expected: {stored_challenge}, Response: {decrypted_response}")
     
         # STEP 1 : Challenge 값 검증
         if stored_challenge != decrypted_response:
             print("Challenge match : Incorrect")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="Invalid Response")
-        print("Challenge match: Correct")
+        logger.debug("Challenge match: Correct")
         
         # STEP 2 : Decrypt된 UUID와 DB에 저장된 UUID 비교 검증
         member_uuid = db.query(Users).filter(Users.user_uuid == decrypted_uuid).first()

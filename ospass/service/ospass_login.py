@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import httpx
 import os
 import uuid
+import random
 import pika
 from pika.exceptions import AMQPConnectionError, AMQPChannelError, ConsumerCancelled
 import json
@@ -11,7 +12,7 @@ from dotenv import load_dotenv
 from schemes import InitLoginRequest
 from service.auth import get_or_issue_challenge
 from router.redisConst import REDIS_AUTH_ATTEMPT_PREFIX
-from utils.findApikey import find_service_info_by_apikey_value, find_service_info_by_service_id_key, find_service_apikey_by_service_id_key
+from utils.findApikey import find_service_info_by_service_id_key, find_service_apikey_by_service_id_key
 from common.models.models import Users, API_Key
 from common.database.database import redis_config
 from custom_log import LoggerSetup
@@ -144,8 +145,11 @@ def process_ospass_login(request : InitLoginRequest,
         attempt_id = str(uuid.uuid4())
         logger.debug(f"Generated Attempt ID:{attempt_id}")
         
-        challenge = get_or_issue_challenge(client_id)
-        logger.debug(f"Get or Issued Challenge: {challenge}")
+        new_attempt_challenge = hex(random.getrandbits(128))[2:].zfill(32)
+        logger.debug(f"[/v1/ospass-login] Generated Challenge: {new_attempt_challenge}, type:{type(new_attempt_challenge)}")
+        
+        # challenge = get_or_issue_challenge(client_id)
+        # logger.debug(f"Get or Issued Challenge: {challenge}")
         
         attempt_state = {
             "status": "pending",
@@ -153,7 +157,8 @@ def process_ospass_login(request : InitLoginRequest,
             "internal_service_id" : client_id,
             "redirect_uri" : redirect_uri,
             "state" : state,
-            "s_id" : None
+            "s_id" : None,
+            "challenge" : new_attempt_challenge
         }
         attempt_ttl_seconds = 300
         redis_key = f"{REDIS_AUTH_ATTEMPT_PREFIX}{attempt_id}"
@@ -163,10 +168,10 @@ def process_ospass_login(request : InitLoginRequest,
             "attempt_id" : attempt_id,
             "client_id" : client_id, 
             "full_phone_num" : full_phone_num, 
-            "challenge" : challenge, 
+            "challenge" : new_attempt_challenge, 
             "uid" : user.uid
         }
-        print(f"RMQ에 보낼 데이터 타입 및 내용: {type(msg)} & {msg}")
+        print(f"RMQ에 보낼 데이터 타입 및 내용: {msg}")
         
         pro_data = data_producer(msg)
         print(f"보내기 성공: {pro_data}")
