@@ -57,12 +57,6 @@ def process_verify_card_response(data:Card_Data, expected_challenge: str, db: Se
         decrypted_response = decrypted.get("response")
         print(f"Decrypted\nUUID: {decrypted_uuid}, Response: {decrypted_response}")
     
-        # # Redis에서 챌린지 return 값
-        # challenge_value = get_or_issue_challenge(client_id)
-        # if isinstance(challenge_value, bytes):
-        #     stored_challenge = challenge_value.decode().upper()
-        # else:
-        #     stored_challenge = challenge_value.upper()
         stored_challenge = expected_challenge.upper()
         logger.debug(f"Challenge Expected: {stored_challenge}, Response: {decrypted_response}")
     

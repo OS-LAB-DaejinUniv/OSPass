@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from common.models.models import Users
 from schemes import Profile
 from common.database.database import redis_config
+from router.redisConst import REDIS_SESSION_UUID_MAP_PREFIX
 
 rd = redis_config()
 
@@ -19,7 +20,9 @@ def getProfileInfo(db:Session,token_paylaod:dict) -> Profile:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
                                 detail="Invalid token payload")
         # s_id를 키 값으로 가지고 있는 사용자 UUID 추출
-        user_uuid = rd.get("s_id")
+        get_uuid_key = f"{REDIS_SESSION_UUID_MAP_PREFIX}{s_id}"
+        user_uuid_bytes = rd.get(get_uuid_key)
+        user_uuid = user_uuid_bytes.decode('utf-8')
         if not user_uuid:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Session Expired or Invalidated")

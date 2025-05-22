@@ -474,9 +474,12 @@ def logout(access_token:str=Depends(oauth2_scheme)):
             logger.warning(f"[/v1/logout] failed: Invalid Sessio ID:{s_id} from {access_token}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="Invalid Session ID")
-        redis_key_logout = f"{REDIS_REFRESH_TOKEN_PREFIX}{s_id}" 
-        rd.delete(redis_key_logout)
-    
+        redis_key_refresh_token = f"{REDIS_REFRESH_TOKEN_PREFIX}{s_id}" 
+        rd.delete(redis_key_refresh_token)
+        redis_key_session = f"{REDIS_SESSION_UUID_MAP_PREFIX}{s_id}"
+        rd.delete(redis_key_session)
+        logger.debug(f"[/v1/logout] deleted refresh token:{redis_key_refresh_token}, session:{redis_key_session}")
+        
     except JWTError as je:
         logger.error(f"[/v1/logout] failed: {str(je)}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -487,9 +490,8 @@ def logout(access_token:str=Depends(oauth2_scheme)):
                             detail="Error Occureed during logout")
     return {"message" : "Logout Successful"}
 
-# @oauth_router.get("/v1/profile")
-# def getProfile(db:Session=Depends(get_db),
-#                token_paylaod:dict=Depends(currentUserInfo)):
-#     if token_paylaod:
-#         user_info = db.query(Users).filter()
-#     return getProfileInfo(db, token_paylaod)
+@oauth_router.get("/v1/profile")
+def getProfile(db:Session=Depends(get_db),
+               token_paylaod:dict=Depends(currentUserInfo)):
+    
+    return getProfileInfo(db, token_paylaod)
