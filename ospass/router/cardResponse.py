@@ -39,6 +39,8 @@ def verify_card_response(data: Card_Data_With_Attempt,
     """
     attempt_id = data.attempt_id
     
+    logger.debug(f"[/v1/card-response] received raw data: {data.model_dump_json()}") # Pydantic 모델 dumps_json 출력
+    logger.debug(f"[/v1/card-response] received attempt_id: {attempt_id}, card_data (HEX): {data.card_data}") # card_data HEX 값 직접 출력
     logger.debug(f"[/v1/card-response] received for attempt_id: {attempt_id}, service_id:{service_id}")
     
     redis_attempt_key = f"{REDIS_AUTH_ATTEMPT_PREFIX}{attempt_id}"
@@ -72,8 +74,20 @@ def verify_card_response(data: Card_Data_With_Attempt,
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="serivce_id mismatch for this attempt")
         
+        stored_attempt_challenge = attempt_state.get("challenge")
+        logger.debug(f"[/v1/card-response] challenge type: {type(stored_attempt_challenge)}")
+        if not stored_attempt_challenge:
+            logger.error(f"[/v1/card-response] failed: Challenge for attempt missing in Redis State: {attempt_id}")
+            attempt_state["status"] = "failed"
+            attempt_state["error"] = "internal_state_error"
+            attempt_state["error_description"] = "Internal state error: Challenge missing"
+            if current_ttl > -2:
+                rd.setex(redis_attempt_key, ...)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                             detail="Internal State Error during verification")
+        
         # STEP 3. NFC 데이터 검증 및 UUID 복호화 / 추출출
-        decrypted_uuid = process_verify_card_response(data, service_id, db)
+        decrypted_uuid = process_verify_card_response(data, stored_attempt_challenge, db)
         logger.debug(f"[/v1/card-response] Decrypted My-UUID:{decrypted_uuid}")
         
         # STEP 4. 복호화된 UUID로 DB에서 사용자 조회

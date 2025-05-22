@@ -14,8 +14,10 @@ from common.database.conn_postgre import get_db
 from common.database.database import redis_config
 from service.ospass_login import process_ospass_login
 from service.token import Oauth_Token
+from service.profile import getProfileInfo
 from utils.findApikey import find_service_info_by_apikey_value
 from utils.redirectError import redirect_with_oauth2_error
+from utils.currentUser import currentUserInfo
 from custom_log import LoggerSetup
 from .redisConst import (
     REDIS_AUTH_ATTEMPT_PREFIX,
@@ -99,7 +101,7 @@ def authorize(response_type:str=Query(...,description="code로 고정"),
             logger.error(f"[/v1/authorization] Internal Error: Matched API_Key Row:{api_key_row} but not matched {api_key}")
             return redirect_with_oauth2_error(redirect_uri, status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal Service Configuration Error", status)
         
-                # 해당 서비스 항목에서 등록된 redirect_uri 목록을 가져와 요청받은 redirect_uri가 포함되는지 확인
+        # 해당 서비스 항목에서 등록된 redirect_uri 목록을 가져와 요청받은 redirect_uri가 포함되는지 확인
         registered_redirect_uris = matching_service_info.get("redirect_uri", [])
         if not isinstance(registered_redirect_uris, list) or redirect_uri not in registered_redirect_uris:
              logger.warning(f"[/v1/authorization] failed: redirect_uri {redirect_uri} not registered for client_id (user apikey) {api_key}. Registered: {registered_redirect_uris}")
@@ -170,7 +172,7 @@ def authorize(response_type:str=Query(...,description="code로 고정"),
         # 인가 코드 TTL 설정
         auth_code_ttl = 600 # 10분
         redis_auth_code_key = f"{REDIS_AUTH_CODE_PREFIX}{authorization_code}"
-        rd.setex(redis_auth_code_key, auth_code_ttl, json.dump(auth_data))
+        rd.setex(redis_auth_code_key, auth_code_ttl, json.dumps(auth_data))
         logger.debug(f"[/v1/authorization] Stored auth code")
         
         # STEP 6. 사용자의 브라우저를 서비스 서버의 redirect_uri로 리다이렉트
@@ -194,7 +196,7 @@ def authorize(response_type:str=Query(...,description="code로 고정"),
         logger.error(f"[/v1/authorization] HTTP Error: {he.status_code}, {he.detail}")
         raise he
     except Exception as e:
-        logger.error(f"[v1/authorization] Unexpected Error")
+        logger.error(f"[v1/authorization] Unexpected Error", exc_info=True)
         if redirect_uri:
             return redirect_with_oauth2_error(redirect_uri, status.HTTP_500_INTERNAL_SERVER_ERROR, 
                                               "Unexpected Error occured during Get authorization", state)
@@ -432,7 +434,7 @@ def issued_refresh_token(grant_type:str=Form(...),
             })
             session_ttl = refresh_token_current_ttl
             
-        # STEP 7. 
+        # session_id <-> UUID mapping
         session_uuid_key = f"{REDIS_SESSION_UUID_MAP_PREFIX}{s_id}"
         if session_ttl > 0:
             rd.expire(session_uuid_key, session_ttl)
@@ -452,3 +454,42 @@ def issued_refresh_token(grant_type:str=Form(...),
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="Error refreshing token")
 
+@oauth_router.post("/v1/logout")
+def logout(access_token:str=Depends(oauth2_scheme)):
+    """
+    - Logout API
+    - 서비스 서버가 발급받은 액세스 토큰을 헤더에 담아 요청
+    - Redis에 저장된 refresh token과 세션 정보를 삭제(블랙리스트)
+    :param
+    - token: 서비스 서버가 발급받은 Access Token
+    :return
+    - Logout 성공 여부
+    """
+    logger.debug(f"[/v1/logout] received access token:{access_token}")
+    try:
+        payload = jwt.decode(access_token, token.ACCESS_SECRET_KEY,
+                             algorithms=[token.ALGORITHM])
+        s_id = payload.get("sub")
+        if not s_id:
+            logger.warning(f"[/v1/logout] failed: Invalid Sessio ID:{s_id} from {access_token}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                                detail="Invalid Session ID")
+        redis_key_logout = f"{REDIS_REFRESH_TOKEN_PREFIX}{s_id}" 
+        rd.delete(redis_key_logout)
+    
+    except JWTError as je:
+        logger.error(f"[/v1/logout] failed: {str(je)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid Token")
+    except Exception as e:
+        logger.error(f"[/v1/logout] Error Occured during logout")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Error Occureed during logout")
+    return {"message" : "Logout Successful"}
+
+# @oauth_router.get("/v1/profile")
+# def getProfile(db:Session=Depends(get_db),
+#                token_paylaod:dict=Depends(currentUserInfo)):
+#     if token_paylaod:
+#         user_info = db.query(Users).filter()
+#     return getProfileInfo(db, token_paylaod)
